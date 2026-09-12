@@ -82,6 +82,11 @@ contract WeirV2LaunchLockerTest is Test {
     }
 
     function test_lockPosition_revertsIfLockerDoesNotHoldPosition() public {
+        // Minted to someone other than the locker, so ownerOf resolves
+        // (avoiding ERC721NonexistentToken) but fails the locker's own
+        // ownership check instead.
+        positionManager.mint(makeAddr("someoneElse"), 1);
+
         vm.prank(factory);
         vm.expectRevert(WeirV2LaunchLocker.PositionNotHeld.selector);
         locker.lockPosition(launchTokenAddr, 1);

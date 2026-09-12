@@ -300,9 +300,11 @@ contract WeirV2BuybackVaultTest is Test {
         vaultContract.lock(address(token), 1_000e18, creator, protocolRecipient, 3_000);
 
         assertEq(vaultContract.totalLocked(address(token)), 2_000e18);
-        // A fresh equal-size deposit pulls the blended vest roughly halfway
-        // back toward a full new schedule, so far less than 500e18 (the
-        // pre-topup vested amount) should show as vested immediately after.
-        assertLt(vaultContract.vestedAmount(address(token)), 500e18);
+        // Before the top-up, 500e18 had linearly vested (half of a 1000e18,
+        // five-year lock). A fresh equal-size deposit blends in a brand new
+        // five-year schedule, pulling the combined vest's remaining duration
+        // back out to 3.75 years — so immediately after, no more than that
+        // same 500e18 can show as vested; it must not have grown.
+        assertLe(vaultContract.vestedAmount(address(token)), 500e18);
     }
 }
