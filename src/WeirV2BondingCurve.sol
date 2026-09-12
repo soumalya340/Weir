@@ -141,6 +141,11 @@ contract WeirV2BondingCurve is ReentrancyGuard {
     // and handed to the graduated pool intact. Everything above it is the
     // sellable allocation, and graduation is exactly its exhaustion.
     uint256 public reservedTokens;
+    // Addresses the factory has declared exempt from the (not yet
+    // implemented) launch-window snipe tax. Recorded here so the factory's
+    // exemption lists have somewhere to land; buy()/sell() do not yet charge
+    // any snipe tax or consult this mapping.
+    mapping(address => bool) public snipeTaxExempt;
 
     modifier onlyFactory() {
         if (msg.sender != factory) revert NotFactory();
@@ -293,6 +298,15 @@ contract WeirV2BondingCurve is ReentrancyGuard {
     function setBuybackEnabled(bool enabled) external onlyFactory {
         buybackEnabled = enabled;
         emit BuybackEnabledUpdated(enabled);
+    }
+
+    /**
+     * @notice Records `account` as exempt from the launch-window snipe tax.
+     * @dev Bookkeeping only: buy()/sell() do not yet charge a snipe tax, so
+     * this has no economic effect until that mechanic is implemented.
+     */
+    function exemptFromSnipeTax(address account) external onlyFactory {
+        snipeTaxExempt[account] = true;
     }
 
     /**

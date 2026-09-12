@@ -26,6 +26,11 @@ struct LaunchDeployment {
     bool buybackEnabled;
     uint256 graduationThreshold;
     uint256 supply;
+    // Carried through from TokenParams.salt. Not yet consumed here: curve and
+    // token deployment below still use plain `new`, not CREATE2, so
+    // deterministic/vanity addresses and predictLaunchAddresses remain
+    // unimplemented.
+    bytes32 salt;
     string name;
     string symbol;
     string logo;

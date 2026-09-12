@@ -7,6 +7,16 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IWeirV2FeeEscrow} from "./interfaces/ILaunchpadV2.sol";
 
 /**
+ * @notice Narrow ERC20Burnable surface. WeirV2LauncherToken is the only
+ * `stakeToken` this contract is ever deployed against, and it implements
+ * ERC20Burnable, but `stakeToken` is typed as plain IERC20 for the rest of
+ * this contract's needs, so `burnAndExit` casts to this instead.
+ */
+interface IERC20Burnable {
+    function burn(uint256 amount) external;
+}
+
+/**
  * @title WeirV2StakingReward
  * @notice Lets holders of one graduated launch's memecoin stake it directly
  * (no LP position, no pool exposure, no impermanent loss) in exchange for a
@@ -39,11 +49,17 @@ contract WeirV2StakingReward is ReentrancyGuard {
     error InsufficientStake();
     error TooEarlyToUnstake();
     error NativeValueMismatch();
+    error NotFutarchyProposal();
+    error FutarchyProposalAlreadySet();
+    error EarlyExitNotUnlocked();
 
     event Staked(address indexed user, uint256 amount, uint256 unlockTime);
     event Unstaked(address indexed user, uint256 amount);
     event Harvested(address indexed user, uint256 amount);
     event RewardNotified(uint256 amount, uint256 newAccRewardPerShare);
+    event BurnedAndExited(address indexed user, uint256 amount, uint256 reward);
+    event FutarchyProposalSet(address proposal);
+    event EarlyExitUnlocked(address proposal);
 
     address public immutable hook;
     IERC20 public immutable stakeToken;
@@ -52,6 +68,17 @@ contract WeirV2StakingReward is ReentrancyGuard {
 
     uint256 public totalStaked;
     uint256 public accRewardPerShare;
+
+    // The one WeirV2FutarchyProposal instance authorized to decide this
+    // vault's early-exit question. Set at most once (a fresh proposal cycle
+    // needs a fresh vault, exactly as WeirV2BuybackVault's per-token vest
+    // terms are fixed once bound). Deciding "no" simply never unlocks
+    // anything; there is no separate reject step to wire.
+    address public futarchyProposal;
+    // Once true, permanently lets any staker burn their stake and exit early
+    // via burnAndExit, bypassing UNLOCK_PERIOD. Set only by futarchyProposal
+    // when its pass market wins, and never unset.
+    bool public earlyExitUnlocked;
 
     struct UserInfo {
         uint256 amount;
@@ -137,6 +164,58 @@ contract WeirV2StakingReward is ReentrancyGuard {
     }
 
     /**
+     * @notice Wires the one futarchy proposal contract allowed to unlock
+     * early exit for this vault. Permissionless and settable at most once:
+     * anyone can point a fresh WeirV2FutarchyProposal at an unwired vault to
+     * kick off a decision market on it, but a vault already deciding (or
+     * already unlocked) cannot be redirected to a second, competing proposal.
+     */
+    function setFutarchyProposal(address proposal) external {
+        if (proposal == address(0)) revert ZeroAddress();
+        if (futarchyProposal != address(0)) revert FutarchyProposalAlreadySet();
+        futarchyProposal = proposal;
+        emit FutarchyProposalSet(proposal);
+    }
+
+    /**
+     * @notice Called by this vault's registered futarchy proposal once its
+     * pass market has won, permanently letting stakers burn their stake and
+     * exit early via `burnAndExit`. Idempotent: a proposal cannot double-call
+     * this to any further effect, and there is no path back to locked.
+     */
+    function unlockEarlyExit() external {
+        if (msg.sender != futarchyProposal) revert NotFutarchyProposal();
+        earlyExitUnlocked = true;
+        emit EarlyExitUnlocked(msg.sender);
+    }
+
+    /**
+     * @notice Burns `amount` of the caller's staked memecoin outright
+     * (instead of returning it) and pays out their full accrued reward plus
+     * the pro-rata share of `amount` against their stake, bypassing
+     * UNLOCK_PERIOD. Only callable once this vault's futarchy proposal has
+     * resolved in favour of early exit. This is the "take out the 40% fee
+     * liquidity by burning your tokens" path the decision market exists for;
+     * ordinary `unstake` is unaffected and keeps returning the stake intact.
+     */
+    function burnAndExit(uint256 amount) external nonReentrant {
+        if (!earlyExitUnlocked) revert EarlyExitNotUnlocked();
+        if (amount == 0) revert ZeroAmount();
+
+        UserInfo storage u = users[msg.sender];
+        if (amount > u.amount) revert InsufficientStake();
+
+        uint256 reward = _settle(u);
+
+        u.amount -= amount;
+        totalStaked -= amount;
+        u.rewardDebt = (u.amount * accRewardPerShare) / ACC_REWARD_SCALE;
+
+        IERC20Burnable(address(stakeToken)).burn(amount);
+        emit BurnedAndExited(msg.sender, amount, reward);
+    }
+
+    /**
      * @notice Funds this pool's staker reward pot with `amount` of quote
      * token, pulled from the hook (attached as `msg.value` when this pool's
      * quote currency is native ETH). Called once per `sweepPoolFees` with
@@ -170,12 +249,12 @@ contract WeirV2StakingReward is ReentrancyGuard {
     /**
      * @dev Credits everything the accumulator owes `u` at its current
      * checkpoint through the shared fee escrow, then re-bases its debt so
-     * the same reward is never paid twice.
+     * the same reward is never paid twice. Returns the amount credited.
      */
-    function _settle(UserInfo storage u) private {
-        uint256 accrued = (u.amount * accRewardPerShare) / ACC_REWARD_SCALE - u.rewardDebt;
+    function _settle(UserInfo storage u) private returns (uint256 accrued) {
+        accrued = (u.amount * accRewardPerShare) / ACC_REWARD_SCALE - u.rewardDebt;
         u.rewardDebt = (u.amount * accRewardPerShare) / ACC_REWARD_SCALE;
-        if (accrued == 0) return;
+        if (accrued == 0) return 0;
 
         if (quoteToken == address(0)) {
             feeEscrow.credit{value: accrued}(msg.sender);
