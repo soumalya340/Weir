@@ -23,6 +23,7 @@ import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {BaseHook} from "@uniswap/v4-hooks-public/src/base/BaseHook.sol";
 
 import {WeirV2BuybackVault} from "../WeirV2BuybackVault.sol";
+import {WeirV2StakingReward} from "../WeirV2StakingReward.sol";
 import {FeePolicySnapshot, IWeirV2FeeEscrow, IWeirV2FeePolicy} from "../interfaces/ILaunchpadV2.sol";
 
 /**
@@ -68,6 +69,10 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
 
     uint256 private constant BASIS_POINTS = 10_000;
     uint256 private constant MAX_PROTOCOL_FEE_SHARE_BPS = 5_000;
+    // Stakers are cut out of the creator's post-protocol-share bucket, the
+    // same way the buyback share is, so this ceiling mirrors that one rather
+    // than bounding against the full BASIS_POINTS.
+    uint256 private constant MAX_STAKER_FEE_SHARE_BPS = 5_000;
     uint256 private constant MAX_HOOK_FEE_BPS = 1_000;
     // Mirrors WeirV2BondingCurve's own ceiling, so a graduated pool can never
     // charge more per trade than the curve it graduated from.
@@ -87,6 +92,8 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     error MinimumOutputRequired();
     error InexactQuoteTransfer(address token, uint256 expected, uint256 received);
     error NothingToRescue();
+    error StakingVaultAlreadySet();
+    error StakingVaultMismatch();
 
     event FactorySet(address factory);
     event PoolRegistered(PoolId indexed poolId, address memecoin, address quoteToken, address creator);
@@ -110,7 +117,9 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     event PoolBuybackSkipped(PoolId indexed poolId, uint256 foldedBackQuote);
     event PoolConversionSkipped(PoolId indexed poolId, uint256 retainedMemecoin);
     event BuybackVaultSet(address vault);
+    event StakingVaultRegistered(PoolId indexed poolId, address vault);
     event ProtocolFeeShareUpdated(uint256 bps);
+    event StakerFeeShareUpdated(uint256 bps);
     event BuybackBurnBpsUpdated(uint256 bps);
     event HookFeeBpsUpdated(uint256 bps);
     event MaxInternalPriceImpactUpdated(uint256 bps);
@@ -124,6 +133,13 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     WeirV2BuybackVault public buybackVault;
     address public protocolFeeRecipient;
     uint256 public protocolFeeShareBps;
+    // Share of each sweep's post-protocol-share creator bucket routed to that
+    // pool's staking vault instead of the creator, alongside (not replacing)
+    // the existing buyback carve-out. Defaults to 4000 (40%): stakers of the
+    // memecoin itself, holding no LP position and bearing no impermanent
+    // loss, are paid out of ordinary trading fees the same way the buyback
+    // and creator legs are.
+    uint256 public stakerFeeShareBps;
     uint256 public buybackBurnBps;
     uint256 public hookFeeBps;
     uint256 public maxInternalPriceImpactBps;
@@ -131,6 +147,10 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
 
     mapping(PoolId => LaunchInfo) public launches;
     mapping(PoolId => PoolKey) private _poolKeys;
+    // Set at most once per pool via registerStakingVault. A pool with no
+    // vault registered simply keeps its staker share folded into the
+    // creator bucket in _distribute, rather than reverting the sweep.
+    mapping(PoolId => WeirV2StakingReward) public stakingVaults;
     mapping(PoolId => mapping(address currency => uint256 amount)) public pendingFees;
     // Tracked separately from pendingFees so the creator tax never enters
     // the protocol/buyback split math; it is folded straight into the
@@ -171,6 +191,7 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
         feeEscrow = feeEscrow_;
         protocolFeeRecipient = protocolFeeRecipient_;
         protocolFeeShareBps = 3_000;
+        stakerFeeShareBps = 4_000;
         buybackBurnBps = 5_000;
         hookFeeBps = 100;
         maxInternalPriceImpactBps = 300;
@@ -240,6 +261,12 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
         if (bps > MAX_PROTOCOL_FEE_SHARE_BPS) revert InvalidBps();
         protocolFeeShareBps = bps;
         emit ProtocolFeeShareUpdated(bps);
+    }
+
+    function setStakerFeeShareBps(uint256 bps) external onlyOwner {
+        if (bps > MAX_STAKER_FEE_SHARE_BPS) revert InvalidBps();
+        stakerFeeShareBps = bps;
+        emit StakerFeeShareUpdated(bps);
     }
 
     function setBuybackBurnBps(uint256 bps) external onlyOwner {
@@ -394,6 +421,29 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
 
         emit CreatorFeeRecipientUpdated(poolId, info.creator, newRecipient);
         info.creator = newRecipient;
+    }
+
+    /**
+     * @notice Wires a pool's staking vault, set at most once per pool.
+     * Restricted to the factory, matching the trust model of every other
+     * per-pool wiring call. The vault is validated as bound to this exact
+     * hook and this pool's own memecoin/quote pair before it is accepted, so
+     * a mismatched or unrelated deployment can never receive fee credits.
+     */
+    function registerStakingVault(PoolId poolId, WeirV2StakingReward vault) external onlyFactory {
+        LaunchInfo storage info = launches[poolId];
+        if (!info.registered) revert UnknownPool();
+        if (address(stakingVaults[poolId]) != address(0)) revert StakingVaultAlreadySet();
+        if (address(vault) == address(0)) revert ZeroAddress();
+        if (
+            vault.hook() != address(this) || address(vault.stakeToken()) != info.memecoin
+                || vault.quoteToken() != info.quoteToken
+        ) {
+            revert StakingVaultMismatch();
+        }
+
+        stakingVaults[poolId] = vault;
+        emit StakingVaultRegistered(poolId, address(vault));
     }
 
     /**
@@ -687,6 +737,17 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     ) private {
         uint256 protocolAmount = (totalQuote * info.protocolFeeShareBps) / BASIS_POINTS;
         uint256 creatorBucket = totalQuote - protocolAmount;
+
+        // Staker share is computed live off the current policy (unlike the
+        // buyback earmark, which is fixed per swap as it accrues), then
+        // carved out of the same post-protocol-share creator bucket the
+        // buyback leg draws from, before that leg is clamped. A pool with no
+        // staking vault registered, or whose vault has nobody staked, simply
+        // keeps this slice in the creator bucket instead of stranding it.
+        uint256 requestedStaker = (creatorBucket * stakerFeeShareBps) / BASIS_POINTS;
+        uint256 stakerAmount = _fundStakingVault(poolId, info, requestedStaker);
+        creatorBucket -= stakerAmount;
+
         // The earmark was summed per swap, so its rounding can land a wei or
         // two above the bucket recomputed here on the aggregate. Clamping
         // keeps the subtraction below sound at a full buyback share, where
@@ -734,6 +795,36 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
         _payOut(info.protocolFeeRecipient, info.quoteToken, protocolAmount);
 
         emit PoolFeesSwept(poolId, protocolAmount, buybackSpent, creatorAmount, tokensLocked);
+    }
+
+    /**
+     * @dev Best-effort funds this pool's staking vault with `amount` of
+     * quote currency and returns what was actually diverted (0 if there is
+     * no vault registered, or if `notifyReward` reports nobody is staked to
+     * credit it to). The caller folds any undiverted amount back into the
+     * creator bucket rather than reverting the whole sweep over it.
+     */
+    function _fundStakingVault(PoolId poolId, LaunchInfo memory info, uint256 amount)
+        private
+        returns (uint256 funded)
+    {
+        if (amount == 0) return 0;
+        WeirV2StakingReward vault = stakingVaults[poolId];
+        // Checked here rather than relying on notifyReward's own guard: for a
+        // native-quote pool the value would already have left this contract
+        // by the time that guard runs, and a false return could not recover
+        // ETH the vault's receive() had already accepted.
+        if (address(vault) == address(0) || vault.totalStaked() == 0) return 0;
+
+        bool distributed;
+        if (info.quoteToken == address(0)) {
+            distributed = vault.notifyReward{value: amount}(amount);
+        } else {
+            IERC20(info.quoteToken).forceApprove(address(vault), amount);
+            distributed = vault.notifyReward(amount);
+            if (!distributed) IERC20(info.quoteToken).forceApprove(address(vault), 0);
+        }
+        return distributed ? amount : 0;
     }
 
     function _payOut(address recipient, address quoteToken, uint256 amount) private {
