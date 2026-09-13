@@ -1,5 +1,9 @@
 # Idea 1: SwapVM-Powered Auto-Compounding Staking Flywheel
 
+> [!NOTE]
+> **Phase: POST-DEX GRADUATION**  
+> This mechanism operates **after** the token has successfully graduated from the bonding curve into a live Uniswap v4 DEX pool. It intercepts trading fees swept by the pool hook and continuously routes them into automated token buybacks and compounding.
+
 ## Sources
 - `/Users/soumalyapaul/Documents/EVM/Eth_Global_Discussions/Weir/src/WeirV2StakingReward.sol` — Staking reward vault for fee distribution
 - `/Users/soumalyapaul/Documents/EVM/Eth_Global_Discussions/Weir/deps/swap-vm` — 1inch SwapVM execution engine and opcode sets

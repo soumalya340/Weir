@@ -1,5 +1,9 @@
 # Idea 2: Zero-Custody Pre-Launch Virtual Commitment via SwapVM
 
+> [!NOTE]
+> **Phase: PRE-GRADUATION (Settles at Graduation Transition)**  
+> This mechanism operates **before and during** the bonding curve phase. Community backers make zero-custody pledges prior to public launch, tokens are reserved during curve trading, and settlement executes atomically at the exact moment of DEX graduation.
+
 ## Sources
 - `/Users/soumalyapaul/Documents/EVM/Eth_Global_Discussions/Weir/src/WeirV2BondingCurve.sol` — Constant-product bonding curve implementation
 - `/Users/soumalyapaul/Documents/EVM/Eth_Global_Discussions/Weir/src/hooks/` & `/Users/soumalyapaul/Documents/EVM/Eth_Global_Discussions/deps/ponsfamily/contractsV2/` — Uniswap v4 hook-based launchpad architecture
