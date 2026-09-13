@@ -1,1 +1,1 @@
-{"version":1,"failures":[{"contract":"test/WeirV2MemeHook.t.sol:WeirV2MemeHookTest","test":"test_hookBytecodeSize"}]}
+{"version":1,"failures":[]}

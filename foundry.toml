@@ -9,4 +9,20 @@ fs_permissions = [
     { access = "read", path = "./.gitignore" },
 ]
 
+# Deployment profile: `forge build --sizes --optimize` and the DeployWeirV2
+# script both compile with the optimizer, which is what keeps the hook and
+# factory under EIP-170. Size gates run here, e.g.
+# FOUNDRY_PROFILE=deploy forge test --match-test test_hookBytecodeSize
+[profile.deploy]
+src = "src"
+out = "out"
+libs = ["lib"]
+via_ir = true
+optimizer = true
+fs_permissions = [
+    { access = "read", path = "./src" },
+    { access = "read", path = "./deps" },
+    { access = "read", path = "./.gitignore" },
+]
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
