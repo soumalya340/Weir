@@ -86,7 +86,47 @@ Converting accrued fees into the quote asset using the pool's own liquidity is s
 
 ---
 
-## 5. Priority Ranking
+## 5. What Support Was Missing / Could Have Been Better
+
+Section 4 is about the protocol's developer experience. This section is about the **support around it** — docs, examples, and tooling — answering "what would have unblocked us faster."
+
+### 5.1 The examples stop exactly where real hooks begin
+
+Available hook examples are single-purpose: take a fee, return a delta, log an event. Every one we found handles a hook that **observes** a swap. Ours had to **act** — convert accrued fees to the quote asset using the pool's own liquidity.
+
+That turned out to be the boundary where documentation ends. `DeltaResolver` (`v4-periphery/src/base/DeltaResolver.sol`) resolves deltas that already exist via `_take`/`_settle`, but nothing in periphery performs a swap inside `unlock`. `FeeTakingHook` in the core test suite takes a fee and stops — it never converts it. We were reading `V4Quoter` and `BaseActionsRouter` source to infer the re-entrancy pattern, because those were the closest working references we could find.
+
+> **What would have helped:** one worked example of a hook that re-enters `PoolManager` during its own callback, with the re-entrancy and slippage caveats stated. This is the single most common thing a fee-taking hook needs after it has taken the fee, and it's the piece with no reference implementation.
+
+### 5.2 Test scaffolding is available but not discoverable
+
+`Deployers.sol` ships at `lib/v4-core/test/utils/Deployers.sol`. We never used it — our hook tests stand up `new PoolManager(...)` and a local `_mineHook()` helper by hand ([`test/WeirV2MemeHook.t.sol#L38-L57`](test/WeirV2MemeHook.t.sol#L38-L57)).
+
+That isn't a criticism of the helper; it's that nothing pointed us at it. The cost shows up in our own test comment at [`#L24`](test/WeirV2MemeHook.t.sol#L24): *"No live pool swaps here."* Standing up a pool with real liquidity and routing a swap through it was enough setup friction that hook-level swap coverage got deferred to a different test file. **Setup cost directly shaped our test coverage** — the thing testing infrastructure is supposed to prevent.
+
+> **What would have helped:** the hook quickstart opening with "inherit `Deployers`, here is a pool with liquidity and a swap through it, in fifteen lines." Ideally re-exported from `v4-periphery` so it doesn't read as a core-internal test utility.
+
+### 5.3 No guidance on hooks that own state across many pools
+
+Ours is a **singleton** — one CREATE2-mined hook serving every launched pool, holding per-pool fee policy, accrued balances, and staking-vault wiring. Every example we found assumes one hook per pool, or a stateless hook.
+
+The questions that mattered had no documented answers: where should per-pool config live, how do you stop pool A's accounting touching pool B's, and what stops someone initializing a pool against your hook to register themselves into your fee split? We answered these ourselves (`beforeInitialize` gating plus a factory-only `registerPool`), but we were guessing at whether we'd chosen the intended shape.
+
+> **What would have helped:** a short note on the multi-pool hook pattern — per-`PoolId` state isolation and how to gate `beforeInitialize` against unauthorized pools. It's a security-relevant pattern with no canonical guidance.
+
+### 5.4 Contract-side integration assumes a frontend
+
+Most liquidity documentation assumes an EOA with a wallet. Ours is a **contract** minting a position on behalf of a launch, so the Permit2 two-step ([`WeirV2GraduationExecutor.sol#L140-L142`](src/WeirV2GraduationExecutor.sol#L140-L142)) and the native-ETH vs. ERC-20 action-encoding branch had to be derived from source and tests.
+
+> **What would have helped:** a "minting from a contract" page covering both quote types. This is what every launchpad, vault, and automated LP manager needs, and it's the path with the least written down.
+
+### 5.5 Honest note on what we did not use
+
+We didn't attend office hours or ask in a support channel during the build. Some of the above may well have been answerable in minutes by someone who knew where to look — so treat 5.1–5.4 as *"what we could not find on our own from docs and source"*, which is still the path most hackathon teams take under time pressure.
+
+---
+
+## 6. Priority Ranking
 
 If the Foundation picks up one thing from this:
 
