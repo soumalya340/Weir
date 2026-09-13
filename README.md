@@ -51,19 +51,26 @@ T+…     every swap pays fees ──► stakers / protocol / buyback-vest / cre
 
 ## Where the integrations live (for verification)
 
-**Uniswap v4**
-- `src/hooks/WeirV2MemeHook.sol` — `_afterSwap` fee capture, `_executeInternalSwap` conversions, `_distribute` split, per-pool staking vaults.
-- `src/WeirV2LaunchFactory.sol` — `createGraduatedPool` (pool init, full-range mint), `registerPool` call.
-- `src/WeirV2GraduationExecutor.sol`, `src/WeirV2LaunchLocker.sol` — PositionManager mint and permanent lock.
+> [!IMPORTANT]
+> **Uniswap Foundation Judges:** Please see [`FEEDBACK.md`](FEEDBACK.md) for our detailed developer feedback report and submission link.
 
-**1inch SwapVM / Aqua** (official routers only, no opcode changes)
-- `src/WeirV2CommitmentRegistry.sol` — `commit`, `settle`, `_fill`, `_buildOrder` (StaticBalances · LimitSwap · InvalidateBit · Deadline).
-- `src/WeirV2StakingReward.sol` — `compound`.
-- `src/libraries/SwapVMOrderLib.sol` — byte-exact program and taker-traits builders.
-- `src/interfaces/ISwapVM.sol` — ABI mirror of the official interface.
+**Uniswap v4 Hook & Stack**
+- [`src/hooks/WeirV2MemeHook.sol#L240-L253`](src/hooks/WeirV2MemeHook.sol#L240-L253) — Hook permissions bitmask (`afterSwap: true`, `afterSwapReturnDelta: true`).
+- [`src/hooks/WeirV2MemeHook.sol#L621-L662`](src/hooks/WeirV2MemeHook.sol#L621-L662) — `_afterSwap` dynamic fee capture from taker delta.
+- [`src/hooks/WeirV2MemeHook.sol#L984-L1058`](src/hooks/WeirV2MemeHook.sol#L984-L1058) — `_executeInternalSwap` pool conversions of memecoin fees into quote tokens.
+- [`src/hooks/WeirV2MemeHook.sol#L790-L920`](src/hooks/WeirV2MemeHook.sol#L790-L920) — `sweepPoolFees` & `_distribute` multi-party fee splits to stakers.
+- [`src/WeirV2LaunchFactory.sol#L1329-L1380`](src/WeirV2LaunchFactory.sol#L1329-L1380) — `createGraduatedPool` initializing v4 pool and calling `registerPool`.
+- [`src/WeirV2GraduationExecutor.sol#L81-L160`](src/WeirV2GraduationExecutor.sol#L81-L160) — `mintFullRangePosition` handling Permit2 and `PositionManager.modifyLiquidities`.
+- [`src/WeirV2LaunchLocker.sol#L75-L115`](src/WeirV2LaunchLocker.sol#L75-L115) — Permanent onchain custody of the Uniswap v4 position NFT.
+
+**1inch SwapVM / Aqua** (official routers, zero-custody settlement)
+- [`src/WeirV2CommitmentRegistry.sol#L210-L380`](src/WeirV2CommitmentRegistry.sol#L210-L380) — `commit`, `settle`, `_fill`, `_buildOrder` (StaticBalances · LimitSwap · InvalidateBit · Deadline).
+- [`src/WeirV2StakingReward.sol#L160-L240`](src/WeirV2StakingReward.sol#L160-L240) — `compound` routing real yield fees into SwapVM token buybacks.
+- [`src/libraries/SwapVMOrderLib.sol`](src/libraries/SwapVMOrderLib.sol) — Byte-exact program and taker-traits builders for SwapVM execution.
+- [`src/interfaces/ISwapVM.sol`](src/interfaces/ISwapVM.sol) — ABI mirror of the official SwapVM router interface.
 
 **Decision market**
-- `src/WeirV2FutarchyProposal.sol`, `src/MemePredictionMarket/Binary.sol`.
+- [`src/WeirV2FutarchyProposal.sol`](src/WeirV2FutarchyProposal.sol), [`src/MemePredictionMarket/Binary.sol`](src/MemePredictionMarket/Binary.sol) — LMSR decision markets for staker early exit.
 
 ## Repository map
 
