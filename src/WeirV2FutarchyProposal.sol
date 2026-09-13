@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {BinaryMarket} from "../deps/degencalls_smartcontracts/src/Binary.sol";
+import {BinaryMarket} from "./MemePredictionMarket/Binary.sol";
 
 interface IWeirV2EarlyExitVault {
     function setFutarchyProposal(address proposal) external;

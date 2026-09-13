@@ -8,7 +8,7 @@ import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC2
 import {WeirV2FutarchyProposal} from "../src/WeirV2FutarchyProposal.sol";
 import {WeirV2StakingReward} from "../src/WeirV2StakingReward.sol";
 import {IWeirV2FeeEscrow} from "../src/interfaces/ILaunchpadV2.sol";
-import {BinaryMarket} from "../deps/degencalls_smartcontracts/src/Binary.sol";
+import {BinaryMarket} from "../src/MemePredictionMarket/Binary.sol";
 
 contract MockMemecoin is ERC20, ERC20Burnable {
     constructor() ERC20("Mock Meme", "MEME") {}
