@@ -10,7 +10,7 @@
 
 | # | Severity | Status | Fix |
 |---|----------|--------|-----|
-| 1 | Critical | **Fixed** | `setFutarchyProposal` is `onlyHook`; factory/hook register validated proposals |
+| 1 | Critical | **Fixed** | `setFutarchyProposal` is `onlyHook`; factory **deploys** `WeirV2FutarchyProposal` via `createFutarchyProposal` (no arbitrary-address register) |
 | 2 | High | **Fixed** | `registerPool` deploys + wires a `WeirV2StakingReward` per pool |
 | 3 | High | **Fixed** | Vendored `BinaryMarket` under tracked `deps/`; removed `deps` from `.gitignore` |
 | 4 | Medium | **Fixed** | Creator `transferCreatorFeeRecipient` cancels pending owner override (notice-and-veto) |
@@ -24,16 +24,19 @@ Low/Info findings (#8–#12) were out of scope for this pass.
 
 ## Finding #1 — Critical: permissionless `setFutarchyProposal`
 
-**Problem:** Any EOA could seize the one-shot proposal slot and unlock early exit (or grief forever).
+**Problem:** Any EOA could seize the one-shot proposal slot and unlock early exit (or grief forever). A `vault()`-only check is insufficient — a malicious contract can fake that getter.
 
 **Fix:**
 - `WeirV2StakingReward.setFutarchyProposal` is now `onlyHook`.
 - `WeirV2FutarchyProposal` no longer self-wires in the constructor.
-- `WeirV2MemeHook.registerFutarchyProposal` + `WeirV2LaunchFactory.registerFutarchyProposal` validate `proposal.vault() == stakingVault` before wiring.
+- Removed permissionless `registerFutarchyProposal(token, proposal)`.
+- Added `WeirV2LaunchFactory.createFutarchyProposal(token)` which **deploys** `new WeirV2FutarchyProposal` and wires only that address through the hook. Arbitrary contracts cannot become the vault's proposal.
+- `WeirV2FutarchyProposal` constructor takes an explicit `proposer_` so factory-path deployment records the paying EOA (not the factory) as bond recipient for `returnBond`.
 
 **Verification:**
-- `test_poc_anyoneCanUnlockEarlyExitWithoutDecisionMarket` — attacker `setFutarchyProposal` / `unlockEarlyExit` revert.
-- `test_poc_squattingTheProposalSlotBricksFutarchyForever` — only hook can wire; legitimate proposal can be set.
+- `test_poc_anyoneCanUnlockEarlyExitWithoutDecisionMarket` — attacker direct seize/unlock reverts.
+- `test_poc_squattingTheProposalSlotBricksFutarchyForever` — only hook can wire.
+- `test_poc_fakeVaultMatchingProposalCannotUnlockViaFactory` — fake with matching `vault()` cannot be registered; factory creates a real proposal with `proposer == attacker`; `returnBond` credits the paying EOA (factory balance unchanged); fake cannot `unlockEarlyExit`.
 - Futarchy suite wires via hook and still resolves pass/fail correctly.
 
 ---
@@ -46,8 +49,7 @@ Low/Info findings (#8–#12) were out of scope for this pass.
 - `WeirV2MemeHook._registerPool` deploys `new WeirV2StakingReward(...)` and stores it in `stakingVaults[poolId]` on every graduated pool registration.
 
 **Verification:**
-- `test_fix_registerPoolDeploysStakingVault_source` asserts the deploy+store path in shipped hook source.
-- Manual review: `_fundStakingVault` can now see a non-zero vault after graduation.
+- `test_fix_registerPoolDeploysStakingVault` calls live `memeHook.registerPool` and asserts `stakingVaults[poolId] != 0` with correct hook/memecoin/quote bindings.
 
 ---
 
@@ -62,7 +64,7 @@ Low/Info findings (#8–#12) were out of scope for this pass.
 **Verification:**
 - `forge build` succeeds including `WeirV2FutarchyProposal`.
 - All 12 tests in `test/WeirV2FutarchyProposal.t.sol` pass.
-- `test_fix_binaryMarketVendoredInRepo` confirms source present and not wholesale-ignored.
+- `test_fix_binaryMarketVendoredInRepo` constructs a real `WeirV2FutarchyProposal` against the vendored market.
 
 ---
 
@@ -75,7 +77,7 @@ Low/Info findings (#8–#12) were out of scope for this pass.
 - Docs updated: timelock is a notice-and-veto window; owner may re-propose after cancel.
 
 **Verification:**
-- `test_fix_creatorTransferCancelsPendingOverride_source` asserts cancel runs before set inside `transferCreatorFeeRecipient`.
+- `test_fix_creatorTransferCancelsPendingOverride` on a live `FactoryHarness`: owner proposes override → creator transfers → `pendingCreatorFeeRecipient` cleared → `executeCreatorFeeRecipientChange` reverts `NoPendingChange`.
 
 ---
 

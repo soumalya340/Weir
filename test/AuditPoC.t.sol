@@ -12,10 +12,25 @@ import {WeirV2BuybackVault} from "../src/WeirV2BuybackVault.sol";
 import {WeirV2LaunchDeployer, LaunchDeployment} from "../src/WeirV2LaunchDeployer.sol";
 import {WeirV2LauncherToken} from "../src/WeirV2LauncherToken.sol";
 import {WeirV2MemeHook} from "../src/hooks/WeirV2MemeHook.sol";
-import {FeePolicySnapshot, IWeirV2FeeEscrow, IWeirV2FeePolicy} from "../src/interfaces/ILaunchpadV2.sol";
+import {WeirV2LaunchFactory} from "../src/WeirV2LaunchFactory.sol";
+import {WeirV2LaunchLocker} from "../src/WeirV2LaunchLocker.sol";
+import {WeirV2FutarchyProposal} from "../src/WeirV2FutarchyProposal.sol";
+import {
+    FeePolicySnapshot,
+    GraduationPhase,
+    IWeirV2FeeEscrow,
+    IWeirV2FeePolicy,
+    IWeirV2LaunchFactory
+} from "../src/interfaces/ILaunchpadV2.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "@uniswap/v4-hooks-public/src/utils/HookMiner.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol";
 
 contract PoCMemecoin is ERC20, ERC20Burnable {
     constructor() ERC20("Meme", "MEME") {}
@@ -75,6 +90,58 @@ contract PoCFeePolicy is IWeirV2FeePolicy {
     }
 }
 
+/// @dev Malicious "proposal" that only exposes vault() — the attack AUDIT.md #1 warned about.
+contract FakeFutarchyProposal {
+    address public immutable vault;
+
+    constructor(address vault_) {
+        vault = vault_;
+    }
+
+    function unlockEarlyExit() external {
+        WeirV2StakingReward(payable(vault)).unlockEarlyExit();
+    }
+}
+
+contract MockPosManager {
+    IPoolManager public immutable poolManager;
+
+    constructor(IPoolManager pm) {
+        poolManager = pm;
+    }
+}
+
+/// @dev Seeds `_launchedTokens` for creator-fee / futarchy factory-path tests.
+contract FactoryHarness is WeirV2LaunchFactory {
+    constructor(
+        address initialOwner,
+        IPoolManager poolManager_,
+        IPositionManager positionManager_,
+        IAllowanceTransfer permit2_,
+        WeirV2LaunchLocker locker_,
+        WeirV2MemeHook memeHook_,
+        IWeirV2FeeEscrow feeEscrow_,
+        WeirV2BuybackVault buybackVault_,
+        uint256 initialLaunchFee
+    )
+        WeirV2LaunchFactory(
+            initialOwner,
+            poolManager_,
+            positionManager_,
+            permit2_,
+            locker_,
+            memeHook_,
+            feeEscrow_,
+            buybackVault_,
+            initialLaunchFee
+        )
+    {}
+
+    function seedLaunch(address token, IWeirV2LaunchFactory.LaunchedToken memory launch) external {
+        _launchedTokens[token] = launch;
+    }
+}
+
 /// Regression tests for AUDIT.md Critical→Medium fixes.
 contract AuditPoC is Test {
     WeirV2StakingReward internal vault;
@@ -125,6 +192,55 @@ contract AuditPoC is Test {
         vm.prank(hook);
         vault.setFutarchyProposal(realProposal);
         assertEq(vault.futarchyProposal(), realProposal);
+    }
+
+    /// FINDING #1 FIXED: vault()-matching fake cannot be registered or unlock via factory path.
+    function test_poc_fakeVaultMatchingProposalCannotUnlockViaFactory() public {
+        (FactoryHarness factory, WeirV2MemeHook memeHook, address token, PoolId poolId, address stakingVault) =
+            _seedGraduatedLaunch();
+
+        FakeFutarchyProposal fake = new FakeFutarchyProposal(stakingVault);
+        assertEq(fake.vault(), stakingVault, "precondition: fake matches vault()");
+
+        // Legacy permissionless register(token, proposal) must not exist.
+        (bool ok,) = address(factory).call(
+            abi.encodeWithSignature("registerFutarchyProposal(address,address)", token, address(fake))
+        );
+        assertFalse(ok, "arbitrary-address register path must be gone");
+
+        // Direct vault seizure still blocked.
+        vm.prank(attacker);
+        vm.expectRevert(WeirV2StakingReward.NotHook.selector);
+        WeirV2StakingReward(payable(stakingVault)).setFutarchyProposal(address(fake));
+
+        // Factory deploys a real WeirV2FutarchyProposal and wires only that.
+        // The EOA who paid the bond must be recorded as proposer (not the factory).
+        vm.deal(attacker, 1 ether);
+        uint256 attackerBalBefore = attacker.balance;
+        vm.prank(attacker);
+        address realProposal = factory.createFutarchyProposal{value: 0.01 ether}(token);
+        assertEq(attacker.balance, attackerBalBefore - 0.01 ether, "caller paid the bond");
+        assertEq(WeirV2StakingReward(payable(stakingVault)).futarchyProposal(), realProposal);
+        assertTrue(realProposal.code.length > 0);
+        assertEq(WeirV2FutarchyProposal(payable(realProposal)).vault(), stakingVault);
+        assertEq(WeirV2FutarchyProposal(payable(realProposal)).proposer(), attacker, "proposer is paying EOA");
+        assertTrue(realProposal != address(fake));
+        assertTrue(WeirV2FutarchyProposal(payable(realProposal)).proposer() != address(factory));
+
+        // Bond refunds to the paying EOA after the trading window, not the factory.
+        vm.warp(WeirV2FutarchyProposal(payable(realProposal)).closesAt());
+        uint256 balBeforeRefund = attacker.balance;
+        uint256 factoryBalBefore = address(factory).balance;
+        WeirV2FutarchyProposal(payable(realProposal)).returnBond();
+        assertEq(attacker.balance, balBeforeRefund + 0.01 ether, "returnBond credits paying EOA");
+        assertEq(address(factory).balance, factoryBalBefore, "factory must not keep the bond");
+
+        // Fake still cannot unlock.
+        vm.prank(address(fake));
+        vm.expectRevert(WeirV2StakingReward.NotFutarchyProposal.selector);
+        WeirV2StakingReward(payable(stakingVault)).unlockEarlyExit();
+        assertFalse(WeirV2StakingReward(payable(stakingVault)).earlyExitUnlocked());
+        assertEq(address(memeHook.stakingVaults(poolId)), stakingVault);
     }
 
     /// Reward accounting still holds when the hook legitimately wires a proposal.
@@ -280,74 +396,248 @@ contract AuditPoC is Test {
         assertFalse(memeHook.isFeeSweepOperator(secondary), "secondary revoked");
     }
 
-    /// FINDING #2: registerPool path deploys a staking vault (source + hook API).
-    function test_fix_registerPoolDeploysStakingVault_source() public {
-        string memory src = vm.readFile("src/hooks/WeirV2MemeHook.sol");
-        assertTrue(
-            _contains(src, "new WeirV2StakingReward(address(this), IERC20(memecoin), quoteToken, feeEscrow)"),
-            "registerPool must deploy staking vault"
+    /// FINDING #2: registerPool deploys a live staking vault for the pool.
+    function test_fix_registerPoolDeploysStakingVault() public {
+        address owner = makeAddr("owner");
+        address creator = makeAddr("creator");
+        address protocol = makeAddr("protocol");
+        IPoolManager pm = IPoolManager(makeAddr("pm"));
+
+        WeirV2MemeHook memeHook = _mineHook(pm, escrow, protocol, owner);
+        vm.prank(owner);
+        memeHook.setFactory(address(this));
+
+        PoCMemecoin launchToken = new PoCMemecoin();
+        // Native quote: currency0 = address(0), currency1 = memecoin when memecoin > 0.
+        Currency c0 = Currency.wrap(address(0));
+        Currency c1 = Currency.wrap(address(launchToken));
+        if (uint160(address(launchToken)) < uint160(address(0))) {
+            // unreachable for address(0) quote; keep sort explicit
+            (c0, c1) = (c1, c0);
+        }
+        // Sort properly: native ETH (address(0)) is always currency0 when paired.
+        c0 = Currency.wrap(address(0));
+        c1 = Currency.wrap(address(launchToken));
+
+        PoolKey memory key = PoolKey({
+            currency0: c0,
+            currency1: c1,
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(address(memeHook))
+        });
+        PoolId poolId = key.toId();
+
+        assertEq(address(memeHook.stakingVaults(poolId)), address(0), "precondition: no vault");
+
+        FeePolicySnapshot memory policy = FeePolicySnapshot({
+            protocolFeeRecipient: protocol,
+            protocolFeeShareBps: 3000,
+            buybackBurnBps: 5000,
+            hookFeeBps: 100,
+            maxInternalPriceImpactBps: 300
+        });
+        memeHook.registerPool(key, address(launchToken), creator, creator, 0, false, policy);
+
+        address stakingVault = address(memeHook.stakingVaults(poolId));
+        assertTrue(stakingVault != address(0), "registerPool must deploy staking vault");
+        assertEq(WeirV2StakingReward(payable(stakingVault)).hook(), address(memeHook));
+        assertEq(address(WeirV2StakingReward(payable(stakingVault)).stakeToken()), address(launchToken));
+        assertEq(WeirV2StakingReward(payable(stakingVault)).quoteToken(), address(0));
+    }
+
+    /// FINDING #4: creator transfer cancels pending owner override on the live factory.
+    function test_fix_creatorTransferCancelsPendingOverride() public {
+        address owner = makeAddr("owner");
+        address creator = makeAddr("creator");
+        address ownerOverride = makeAddr("ownerOverride");
+        address creatorSafe = makeAddr("creatorSafe");
+        address protocol = makeAddr("protocol");
+        IPoolManager pm = IPoolManager(makeAddr("pm"));
+
+        MockPosManager pos = new MockPosManager(pm);
+        WeirV2LaunchLocker locker = new WeirV2LaunchLocker(owner, address(pos));
+        WeirV2MemeHook memeHook = _mineHook(pm, escrow, protocol, owner);
+        WeirV2BuybackVault buyback = new WeirV2BuybackVault(owner, IWeirV2FeePolicy(address(memeHook)), escrow);
+
+        FactoryHarness factory = new FactoryHarness(
+            owner,
+            pm,
+            IPositionManager(address(pos)),
+            IAllowanceTransfer(makeAddr("permit2")),
+            locker,
+            memeHook,
+            escrow,
+            buyback,
+            0
         );
-        assertTrue(_contains(src, "stakingVaults[poolId] = vault"), "vault must be stored");
+        vm.prank(owner);
+        memeHook.setFactory(address(factory));
+        vm.prank(owner);
+        memeHook.setBuybackVault(buyback);
+        vm.prank(owner);
+        buyback.setFactory(address(factory));
+        vm.prank(owner);
+        locker.setFactory(address(factory));
+
+        // Deploy a real curve owned by this factory so _setCreatorFeeRecipient can forward.
+        PoCFeePolicy policy = new PoCFeePolicy(address(factory));
+        FeePolicySnapshot memory snap = policy.currentFeePolicy();
+        WeirV2BondingCurve curve = new WeirV2BondingCurve(
+            address(0),
+            creator,
+            address(factory),
+            policy,
+            snap,
+            escrow,
+            buyback,
+            10 ether,
+            100,
+            0,
+            false,
+            5 ether,
+            0,
+            15
+        );
+        PoCMemecoin launchToken = new PoCMemecoin();
+        launchToken.mint(address(curve), 1_000_000e18);
+        vm.prank(address(factory));
+        curve.initialize(address(launchToken));
+
+        factory.seedLaunch(
+            address(launchToken),
+            IWeirV2LaunchFactory.LaunchedToken({
+                token: address(launchToken),
+                curve: address(curve),
+                deployer: creator,
+                creatorFeeRecipient: creator,
+                pairToken: address(0),
+                graduationThreshold: 5 ether,
+                poolFee: 3000,
+                tickSpacing: 60,
+                creatorTaxBps: 0,
+                buybackEnabled: false,
+                phase: GraduationPhase.NotGraduated,
+                sweptQuote: 0,
+                sweptTokens: 0,
+                sweptAt: 0,
+                exists: true
+            })
+        );
+
+        vm.prank(owner);
+        factory.setCreatorFeeRecipient(address(launchToken), ownerOverride);
+        (address pendingRecipient,,) = factory.pendingCreatorFeeRecipient(address(launchToken));
+        assertEq(pendingRecipient, ownerOverride, "precondition: override pending");
+
+        vm.prank(creator);
+        factory.transferCreatorFeeRecipient(address(launchToken), creatorSafe);
+
+        (pendingRecipient,,) = factory.pendingCreatorFeeRecipient(address(launchToken));
+        assertEq(pendingRecipient, address(0), "creator transfer must clear pending override");
+        assertEq(factory.getLaunchedToken(address(launchToken)).creatorFeeRecipient, creatorSafe);
+
+        vm.expectRevert(WeirV2LaunchFactory.NoPendingChange.selector);
+        factory.executeCreatorFeeRecipientChange(address(launchToken));
     }
 
-    /// FINDING #4: creator transfer cancels pending owner override.
-    function test_fix_creatorTransferCancelsPendingOverride_source() public {
-        string memory src = vm.readFile("src/WeirV2LaunchFactory.sol");
-        // Ensure the cancel happens inside transferCreatorFeeRecipient before set.
-        uint256 transferPos = _indexOf(src, "function transferCreatorFeeRecipient");
-        uint256 cancelPos = _indexOf(src, "_cancelPendingCreatorFeeRecipientChange(token);");
-        uint256 setPos = _indexOf(src, "_setCreatorFeeRecipient(token, launch, newRecipient);");
-        assertTrue(transferPos != type(uint256).max, "transfer fn exists");
-        assertTrue(cancelPos > transferPos && cancelPos < setPos, "cancel before set in transfer");
-    }
-
-    /// FINDING #3: BinaryMarket is vendored in-repo (not gitignored-only).
+    /// FINDING #3: BinaryMarket is vendored and the project builds futarchy.
     function test_fix_binaryMarketVendoredInRepo() public {
-        string memory src = vm.readFile("deps/degencalls_smartcontracts/src/Binary.sol");
-        assertTrue(_contains(src, "contract BinaryMarket"), "BinaryMarket source present");
-        string memory gi = vm.readFile(".gitignore");
-        // A standalone `deps` ignore would hide the vendored dependency again.
-        assertFalse(_hasStandaloneDepsIgnore(gi), "deps must not be gitignored wholesale");
+        // Driving the real constructor proves the vendored dependency compiles and links.
+        WeirV2FutarchyProposal proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault), address(this));
+        assertTrue(address(proposal.passMarket()) != address(0));
+        assertTrue(address(proposal.failMarket()) != address(0));
+        assertEq(proposal.vault(), address(vault));
     }
 
-    function _contains(string memory haystack, string memory needle) internal pure returns (bool) {
-        return _indexOf(haystack, needle) != type(uint256).max;
+    function _mineHook(IPoolManager pm, IWeirV2FeeEscrow feeEscrow_, address protocol, address owner)
+        internal
+        returns (WeirV2MemeHook memeHook)
+    {
+        uint160 flags =
+            uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+        bytes memory ctorArgs = abi.encode(pm, feeEscrow_, protocol, owner);
+        (, bytes32 salt) = HookMiner.find(address(this), flags, type(WeirV2MemeHook).creationCode, ctorArgs);
+        memeHook = new WeirV2MemeHook{salt: salt}(pm, feeEscrow_, protocol, owner);
     }
 
-    function _indexOf(string memory haystack, string memory needle) internal pure returns (uint256) {
-        bytes memory h = bytes(haystack);
-        bytes memory n = bytes(needle);
-        if (n.length == 0 || n.length > h.length) return type(uint256).max;
-        for (uint256 i = 0; i <= h.length - n.length; ++i) {
-            bool ok = true;
-            for (uint256 j = 0; j < n.length; ++j) {
-                if (h[i + j] != n[j]) {
-                    ok = false;
-                    break;
-                }
-            }
-            if (ok) return i;
-        }
-        return type(uint256).max;
-    }
+    function _seedGraduatedLaunch()
+        internal
+        returns (FactoryHarness factory, WeirV2MemeHook memeHook, address token, PoolId poolId, address stakingVault)
+    {
+        address owner = makeAddr("owner");
+        address creator = makeAddr("creator");
+        address protocol = makeAddr("protocol");
+        IPoolManager pm = IPoolManager(makeAddr("pm"));
 
-    function _hasStandaloneDepsIgnore(string memory gi) internal pure returns (bool) {
-        bytes memory b = bytes(gi);
-        // Match a line that is exactly "deps" (optional surrounding whitespace).
-        uint256 lineStart = 0;
-        for (uint256 i = 0; i <= b.length; ++i) {
-            if (i == b.length || b[i] == bytes1("\n")) {
-                // trim spaces/tabs on [lineStart, i)
-                uint256 a = lineStart;
-                uint256 c = i;
-                while (a < c && (b[a] == " " || b[a] == "\t" || b[a] == bytes1("\r"))) a++;
-                while (c > a && (b[c - 1] == " " || b[c - 1] == "\t" || b[c - 1] == bytes1("\r"))) c--;
-                if (c == a + 4 && b[a] == "d" && b[a + 1] == "e" && b[a + 2] == "p" && b[a + 3] == "s") {
-                    return true;
-                }
-                lineStart = i + 1;
-            }
-        }
-        return false;
+        MockPosManager pos = new MockPosManager(pm);
+        WeirV2LaunchLocker locker = new WeirV2LaunchLocker(owner, address(pos));
+        memeHook = _mineHook(pm, escrow, protocol, owner);
+        WeirV2BuybackVault buyback = new WeirV2BuybackVault(owner, IWeirV2FeePolicy(address(memeHook)), escrow);
+
+        factory = new FactoryHarness(
+            owner,
+            pm,
+            IPositionManager(address(pos)),
+            IAllowanceTransfer(makeAddr("permit2")),
+            locker,
+            memeHook,
+            escrow,
+            buyback,
+            0
+        );
+        vm.prank(owner);
+        memeHook.setFactory(address(factory));
+        vm.prank(owner);
+        memeHook.setBuybackVault(buyback);
+        vm.prank(owner);
+        buyback.setFactory(address(factory));
+        vm.prank(owner);
+        locker.setFactory(address(factory));
+
+        PoCMemecoin launchToken = new PoCMemecoin();
+        token = address(launchToken);
+
+        PoolKey memory key = PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(token),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(address(memeHook))
+        });
+        poolId = key.toId();
+
+        FeePolicySnapshot memory policy = FeePolicySnapshot({
+            protocolFeeRecipient: protocol,
+            protocolFeeShareBps: 3000,
+            buybackBurnBps: 5000,
+            hookFeeBps: 100,
+            maxInternalPriceImpactBps: 300
+        });
+        vm.prank(address(factory));
+        memeHook.registerPool(key, token, creator, creator, 0, false, policy);
+        stakingVault = address(memeHook.stakingVaults(poolId));
+        assertTrue(stakingVault != address(0));
+
+        factory.seedLaunch(
+            token,
+            IWeirV2LaunchFactory.LaunchedToken({
+                token: token,
+                curve: makeAddr("curve"),
+                deployer: creator,
+                creatorFeeRecipient: creator,
+                pairToken: address(0),
+                graduationThreshold: 5 ether,
+                poolFee: 3000,
+                tickSpacing: 60,
+                creatorTaxBps: 0,
+                buybackEnabled: false,
+                phase: GraduationPhase.PoolCreated,
+                sweptQuote: 0,
+                sweptTokens: 0,
+                sweptAt: 0,
+                exists: true
+            })
+        );
     }
 }

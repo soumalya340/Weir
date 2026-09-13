@@ -78,19 +78,23 @@ contract WeirV2FutarchyProposalTest is Test {
 
 
     function _deployAndWireProposal() internal returns (WeirV2FutarchyProposal proposal) {
-        proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        return _deployAndWireProposal(address(this));
+    }
+
+    function _deployAndWireProposal(address proposer_) internal returns (WeirV2FutarchyProposal proposal) {
+        proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault), proposer_);
         vm.prank(hook);
         vault.setFutarchyProposal(address(proposal));
     }
 
     function test_constructor_revertsOnZeroVault() public {
         vm.expectRevert(WeirV2FutarchyProposal.ZeroAddress.selector);
-        new WeirV2FutarchyProposal{value: 0.01 ether}(address(0));
+        new WeirV2FutarchyProposal{value: 0.01 ether}(address(0), address(this));
     }
 
     function test_constructor_revertsOnInsufficientBond() public {
         vm.expectRevert(WeirV2FutarchyProposal.InsufficientBond.selector);
-        new WeirV2FutarchyProposal{value: 0.001 ether}(address(vault));
+        new WeirV2FutarchyProposal{value: 0.001 ether}(address(vault), address(this));
     }
 
     function test_constructor_deploysMarketsAndWiresVault() public {
@@ -106,7 +110,7 @@ contract WeirV2FutarchyProposalTest is Test {
     function test_constructor_revertsIfVaultAlreadyHasProposal() public {
         _deployAndWireProposal();
 
-        WeirV2FutarchyProposal second = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        WeirV2FutarchyProposal second = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault), address(this));
         vm.prank(hook);
         vm.expectRevert(WeirV2StakingReward.FutarchyProposalAlreadySet.selector);
         vault.setFutarchyProposal(address(second));
@@ -185,8 +189,8 @@ contract WeirV2FutarchyProposalTest is Test {
     }
 
     function test_returnBond_paysProposerOnceAfterClose() public {
-        vm.prank(proposerAddr);
-        WeirV2FutarchyProposal proposal = _deployAndWireProposal();
+        WeirV2FutarchyProposal proposal = _deployAndWireProposal(proposerAddr);
+        assertEq(proposal.proposer(), proposerAddr);
 
         vm.warp(proposal.closesAt());
         uint256 balanceBefore = proposerAddr.balance;

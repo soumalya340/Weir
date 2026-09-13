@@ -29,16 +29,13 @@ import {LaunchDeployment, WeirV2LaunchDeployer} from "./WeirV2LaunchDeployer.sol
 import {WeirV2GraduationGuard} from "./WeirV2GraduationGuard.sol";
 import {WeirV2GraduationMath} from "./libraries/WeirV2GraduationMath.sol";
 import {WeirV2BondingCurveMath} from "./libraries/WeirV2BondingCurveMath.sol";
+import {WeirV2FutarchyProposal} from "./WeirV2FutarchyProposal.sol";
 import {
     FeePolicySnapshot,
     GraduationPhase,
     IWeirV2FeeEscrow,
     IWeirV2LaunchFactory
 } from "./interfaces/ILaunchpadV2.sol";
-
-interface IWeirV2FutarchyProposalVault {
-    function vault() external view returns (address);
-}
 
 /**
  * @title WeirV2LaunchFactory
@@ -234,6 +231,7 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
     error NoPendingChange();
     error TimelockNotElapsed(uint256 effectiveAt);
     error TimelockExpired(uint256 expiresAt);
+    error FutarchyStakingVaultMissing();
     error LaunchDependenciesNotWired();
     error PairTokenNotApproved();
     error PairTokenValidationFailed();
@@ -330,7 +328,9 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
     mapping(address pairToken => bool approved) public approvedPairTokens;
     mapping(address pairToken => PairTokenEconomics economics) public pairTokenEconomics;
     mapping(address token => FeePolicySnapshot policy) private _launchFeePolicies;
-    mapping(address token => LaunchedToken launched) private _launchedTokens;
+    // Internal (not private) so Foundry harnesses can seed a launch record for
+    // unit tests without opening a production setter.
+    mapping(address token => LaunchedToken launched) internal _launchedTokens;
     mapping(address token => PendingCreatorFeeRecipient) public pendingCreatorFeeRecipient;
     LaunchConfig[] private _launchConfigs;
 
@@ -980,22 +980,26 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
     }
 
     /**
-     * @notice Wires a deployed WeirV2FutarchyProposal onto the staking vault
-     * for a graduated launch. Permissionless provided the proposal's
-     * `vault()` matches the pool's registered staking vault. The vault itself
-     * only accepts the call via the hook (AUDIT.md #1).
+     * @notice Deploys a fresh WeirV2FutarchyProposal for a graduated launch's
+     * staking vault and wires it through the hook. Anyone may pay the
+     * `PROPOSE_BOND` and call this; the factory is the only deployer, so a
+     * malicious contract that merely exposes `vault()` cannot become the
+     * vault's futarchy proposal (AUDIT.md #1).
+     * @return proposal The newly deployed decision-market contract.
      */
-    function registerFutarchyProposal(address token, address proposal) external {
+    function createFutarchyProposal(address token) external payable returns (address proposal) {
         LaunchedToken storage launch = _launchedTokens[token];
         if (!launch.exists) revert TokenNotFound();
         if (launch.phase != GraduationPhase.PoolCreated) revert WrongGraduationPhase();
-        if (proposal == address(0)) revert ZeroAddress();
 
         PoolId poolId = _poolIdFor(token, launch);
         address vault = address(memeHook.stakingVaults(poolId));
-        if (vault == address(0)) revert TokenNotFound();
-        if (IWeirV2FutarchyProposalVault(proposal).vault() != vault) revert InvalidTokenParams();
+        if (vault == address(0)) revert FutarchyStakingVaultMissing();
 
+        // Pass msg.sender as proposer so returnBond refunds the EOA who paid
+        // PROPOSE_BOND, not this factory (which would otherwise be msg.sender
+        // inside the proposal constructor and confiscate the bond).
+        proposal = address(new WeirV2FutarchyProposal{value: msg.value}(vault, msg.sender));
         memeHook.registerFutarchyProposal(poolId, proposal);
     }
 

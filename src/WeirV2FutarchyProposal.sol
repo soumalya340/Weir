@@ -59,13 +59,16 @@ contract WeirV2FutarchyProposal is ReentrancyGuard {
      * early exit for. Must not already have a futarchy proposal wired (see
      * WeirV2StakingReward.setFutarchyProposal), so at most one decision
      * market can ever be live per vault.
+     * @param proposer_ Bond recipient for `returnBond`. Passed explicitly so
+     * factory-path deployment (`createFutarchyProposal`) can name the EOA who
+     * paid `msg.value` rather than the factory itself.
      */
-    constructor(address vault_) payable {
-        if (vault_ == address(0)) revert ZeroAddress();
+    constructor(address vault_, address proposer_) payable {
+        if (vault_ == address(0) || proposer_ == address(0)) revert ZeroAddress();
         if (msg.value < PROPOSE_BOND) revert InsufficientBond();
 
         vault = vault_;
-        proposer = msg.sender;
+        proposer = proposer_;
         uint256 closes = block.timestamp + TRADING_WINDOW;
         closesAt = closes;
 
@@ -77,7 +80,7 @@ contract WeirV2FutarchyProposal is ReentrancyGuard {
             closes,
             INITIAL_B,
             address(this),
-            msg.sender,
+            proposer_,
             address(this)
         );
         failMarket = new BinaryMarket(
@@ -87,16 +90,15 @@ contract WeirV2FutarchyProposal is ReentrancyGuard {
             closes,
             INITIAL_B,
             address(this),
-            msg.sender,
+            proposer_,
             address(this)
         );
 
-        // Wiring is no longer done here: WeirV2StakingReward.setFutarchyProposal
-        // is hook-gated (AUDIT.md #1). The factory/hook must call
-        // registerFutarchyProposal after deployment, which also prevents an
-        // arbitrary contract with a matching vault() getter from self-wiring.
+        // Wiring is done by WeirV2LaunchFactory.createFutarchyProposal, which
+        // is the only deployer of this contract into a vault's proposal slot
+        // (AUDIT.md #1). Self-wiring here would re-open permissionless seizure.
 
-        emit ProposalCreated(vault_, msg.sender, address(passMarket), address(failMarket), closes);
+        emit ProposalCreated(vault_, proposer_, address(passMarket), address(failMarket), closes);
     }
 
     /**
