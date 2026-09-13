@@ -18,6 +18,16 @@ interface IERC20Burnable {
     function burn(uint256 amount) external;
 }
 
+interface IWeirV2HookRedemptionView {
+    function poolRedemption() external view returns (address);
+}
+
+interface IWeirV2PoolRedemptionFor {
+    function redeemFor(address token, address account, uint256 amount, uint256 minQuoteOut)
+        external
+        returns (uint256 quoteOut);
+}
+
 /**
  * @title WeirV2StakingReward
  * @notice Lets holders of one graduated launch's memecoin stake it directly
@@ -70,12 +80,14 @@ contract WeirV2StakingReward is ReentrancyGuard {
     error OrderTokenMismatch();
     error CompoundBoughtNothing();
     error CompoundOverspent(uint256 spent, uint256 budget);
+    error RedemptionNotConfigured();
 
     event Staked(address indexed user, uint256 amount, uint256 unlockTime);
     event Unstaked(address indexed user, uint256 amount);
     event Harvested(address indexed user, uint256 amount);
     event RewardNotified(uint256 amount, uint256 newAccRewardPerShare);
     event BurnedAndExited(address indexed user, uint256 amount, uint256 reward);
+    event BurnedAndRedeemed(address indexed user, uint256 amount, uint256 reward, uint256 quoteOut);
     event FutarchyProposalSet(address proposal);
     event EarlyExitUnlocked(address proposal);
     event CompoundRouterSet(address swapVM, address weth);
@@ -379,6 +391,35 @@ contract WeirV2StakingReward is ReentrancyGuard {
 
         IERC20Burnable(address(stakeToken)).burn(amount);
         emit BurnedAndExited(msg.sender, amount, reward);
+    }
+
+    /**
+     * @notice The dead-pool exit the decision market is for. Burns `amount`
+     * of the caller's stake through WeirV2PoolRedemption, which pays the
+     * caller their pro-rata share of the pool's locked quote (subject to the
+     * pool-wide 40% ceiling and the caller's own curve/commitment
+     * contribution), plus their full accrued reward, bypassing UNLOCK_PERIOD.
+     * Only callable once this vault's futarchy proposal has resolved PASS,
+     * which is also what unlocked redemption on the pool.
+     */
+    function burnAndRedeem(uint256 amount, uint256 minQuoteOut) external nonReentrant returns (uint256 quoteOut) {
+        if (!earlyExitUnlocked) revert EarlyExitNotUnlocked();
+        if (amount == 0) revert ZeroAmount();
+        address redemption = IWeirV2HookRedemptionView(hook).poolRedemption();
+        if (redemption == address(0)) revert RedemptionNotConfigured();
+
+        UserInfo storage u = users[msg.sender];
+        if (amount > u.amount) revert InsufficientStake();
+
+        uint256 reward = _settle(msg.sender, u);
+
+        u.amount -= amount;
+        totalStaked -= amount;
+        u.rewardDebt = (u.amount * accRewardPerShare) / ACC_REWARD_SCALE;
+
+        stakeToken.forceApprove(redemption, amount);
+        quoteOut = IWeirV2PoolRedemptionFor(redemption).redeemFor(address(stakeToken), msg.sender, amount, minQuoteOut);
+        emit BurnedAndRedeemed(msg.sender, amount, reward, quoteOut);
     }
 
     // ---------------------------------------------------------------------

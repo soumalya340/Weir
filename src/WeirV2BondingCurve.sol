@@ -156,6 +156,11 @@ contract WeirV2BondingCurve is ReentrancyGuard {
     // commitment campaign sets it >= 24h out so backers pledge against a
     // token and curve that already exist but cannot yet be traded.
     uint256 public tradingOpensAt;
+    // Net tokens each account bought from this curve (buys credit the
+    // recipient, sells debit the seller, floored at zero). This is the
+    // "helped build the launch" record WeirV2PoolRedemption reads to decide
+    // who may vote on the pool's futarchy and how much they may redeem.
+    mapping(address => uint256) public curveBought;
     // Addresses the factory has declared exempt from the launch-window snipe
     // tax (creator and any creator-supplied allowlist).
     mapping(address => bool) public snipeTaxExempt;
@@ -523,6 +528,7 @@ contract WeirV2BondingCurve is ReentrancyGuard {
         _accrueFees(fee, tax + snipe);
         trackedQuote += spent;
         trackedTokens -= tokensOut;
+        curveBought[recipient] += tokensOut;
         IERC20(token).safeTransfer(recipient, tokensOut);
 
         uint256 refund = received - spent;
@@ -577,6 +583,8 @@ contract WeirV2BondingCurve is ReentrancyGuard {
         _accrueFees(fee, tax);
         trackedQuote -= quoteOut;
         trackedTokens += tokensIn;
+        uint256 bought = curveBought[msg.sender];
+        curveBought[msg.sender] = bought > tokensIn ? bought - tokensIn : 0;
         _sendQuote(recipient, quoteOut);
 
         emit CurveSell(msg.sender, recipient, tokensIn, quoteOut, fee, tax);

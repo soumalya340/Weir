@@ -3,6 +3,11 @@ pragma solidity ^0.8.26;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+/// @notice Optional access check consulted before a share purchase.
+interface ITradeGate {
+    function canTrade(address trader) external view returns (bool);
+}
+
 /**
  * @title BinaryMarket
  * @notice Binary YES/NO market compatible with WeirV2FutarchyProposal.
@@ -84,6 +89,27 @@ contract BinaryMarket is ReentrancyGuard {
         _;
     }
 
+    // Weir addition (the only change to the vendored degencalls market):
+    // an optional trade gate. When set, only accounts the gate approves may
+    // buy shares, which is how a Weir futarchy restricts voting to the
+    // members of the pool being decided. Selling and claiming stay open so a
+    // position can always be unwound.
+    address public tradeGate;
+
+    event TradeGateSet(address gate);
+
+    modifier onlyAllowedTrader() {
+        if (tradeGate != address(0) && !ITradeGate(tradeGate).canTrade(msg.sender)) revert Unauthorized();
+        _;
+    }
+
+    function setTradeGate(address gate) external onlyAdmin {
+        require(tradeGate == address(0), "gate set");
+        require(gate != address(0), "zero");
+        tradeGate = gate;
+        emit TradeGateSet(gate);
+    }
+
     constructor(
         uint256 _marketId,
         string memory _question,
@@ -162,7 +188,13 @@ contract BinaryMarket is ReentrancyGuard {
         revert InvalidOutcome();
     }
 
-    function swapIn(uint256 outcome, uint256 shareAmount, uint256 maxCost) external payable nonReentrant whenNotPaused {
+    function swapIn(uint256 outcome, uint256 shareAmount, uint256 maxCost)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        onlyAllowedTrader
+    {
         if (isResolved || isCancelled) revert MarketIsResolved();
         if (shareAmount == 0) revert ZeroAmount();
         uint256 cost = getBuyCost(outcome, shareAmount);

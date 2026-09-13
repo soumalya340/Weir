@@ -1,8 +1,6 @@
 # Weir — Test plan
 
-Test cases to write, grouped by contract. Each entry names the case and what it must assert. None of these are implemented yet; this is the to-do list. Existing suites (`test/*.t.sol`, 80 tests) cover the pre-existing launchpad, buyback vault, locker, staking basics and futarchy proposal.
-
-**Known item before adding anything:** three cases in `test/AuditPoC.t.sol` currently fail with `OwnableUnauthorizedAccount`. Cause: in `_mineHook`, `vm.prank(owner)` is consumed by the `new WeirV2StakingVaultDeployer(...)` inside the call arguments instead of by `setStakingVaultDeployer`. Fix: construct the deployer into a local first, then prank, then call.
+Test cases to write, grouped by contract. Each entry names the case and what it must assert. This is the to-do list; cases already covered by an existing suite under `test/` (162 passing) can be ticked off as they are matched.
 
 Shared fixtures needed:
 
@@ -160,14 +158,69 @@ Shared fixtures needed:
 | 6.15 | Existing behaviour | Every pre-existing staking test still passes (stake/unstake/harvest/burnAndExit/notifyReward, ERC-20 and native). |
 | 6.16 | Fork: real router | Against the official router with a maker's `StaticBalances · LimitSwap` order selling the memecoin for USDC: `compound` fills and restakes; against an Aqua-shipped XYC strategy: same. |
 
-## 7. `WeirV2FutarchyProposal` (regression only)
+## 7. Futarchy and dead-pool redemption
 
-Existing suite covers deploy, bond, resolution and the factory-only wiring. Add:
+### 7.1 Membership (`WeirV2BondingCurve.curveBought`, `WeirV2PoolRedemption.contribution`)
 
 | # | Case | Assert |
 |---|---|---|
-| 7.1 | Early exit after compounding | A staker who compounded can `burnAndExit` the full (grown) stake once PASS resolves. |
-| 7.2 | Proposal on a vault created via the deployer | `createFutarchyProposal` works with the deployer-created vault (hook validates `vault()` match). |
+| 7.1.1 | Buy credits recipient | `curveBought[recipient]` grows by `tokensOut` (not `msg.sender` when they differ). |
+| 7.1.2 | Sell debits seller, floored | Selling more than bought leaves `curveBought == 0`, never underflows. |
+| 7.1.3 | Contribution sums curve + commitment | Member who bought on curve and had a fill: `contribution == curveBought + filledTokens`; defector's `filledTokens == 0` adds nothing. |
+| 7.1.4 | Unknown token | `contribution` returns 0 for a non-launch address; `isMember` false. |
+| 7.1.5 | v4 buyer is not a member | Account that only bought on the pool after graduation: `isMember == false`. |
+
+### 7.2 Vote gating (`BinaryMarket.tradeGate`, `WeirV2FutarchyProposal.canTrade`)
+
+| # | Case | Assert |
+|---|---|---|
+| 7.2.1 | Gate set at construction | Both markets' `tradeGate == proposal` when the hook has a redemption; zero when the vault's hook is an EOA (unit-test path). |
+| 7.2.2 | Non-member cannot buy | `swapIn` from a non-member reverts `Unauthorized`; member succeeds. |
+| 7.2.3 | Sell and claim stay open | A member who later sells all curve tokens (contribution 0) can still `swapOut` and `claimWinnings`. |
+| 7.2.4 | Gate is set-once | Second `setTradeGate` reverts; non-admin cannot set. |
+| 7.2.5 | Ungated fallback | With `redemption == 0`, `canTrade` returns true for anyone. |
+
+### 7.3 Proposal wiring and resolution
+
+| # | Case | Assert |
+|---|---|---|
+| 7.3.1 | Factory binds the proposal | `createFutarchyProposal` registers the proposal on the redemption contract; `states[token].proposal == proposal`; second proposal for the same token reverts `ProposalAlreadySet` (and the vault's `FutarchyProposalAlreadySet`). |
+| 7.3.2 | Factory requires redemption | With `hook.poolRedemption == 0`, `createFutarchyProposal` reverts `PoolRedemptionNotSet`. |
+| 7.3.3 | PASS unlocks both | After PASS `finalize`: `vault.earlyExitUnlocked == true`, `states[token].unlocked == true`, `liquidityAtUnlock == positionManager.getPositionLiquidity(tokenId)`. |
+| 7.3.4 | FAIL unlocks nothing | Neither flag set; `redeem` reverts `NotUnlocked`. |
+| 7.3.5 | Only the bound proposal can unlock | A stranger calling `unlockRedemption` reverts `NotProposal`; the proposal calling twice reverts `AlreadyUnlocked`. |
+| 7.3.6 | Existing regression | Bond return, trading-window guards, double-finalize all unchanged. |
+
+### 7.4 Redemption (`WeirV2PoolRedemption.redeem` / `redeemFor`, `WeirV2LaunchLocker.redeemLiquidity`)
+
+| # | Case | Assert |
+|---|---|---|
+| 7.4.1 | Happy path | Member burns `a`: liquidity removed `== a / S × L`; member receives `a / S × poolQuote` (± rounding); `totalSupply` falls by `a + tokensFromPool`; pool `sqrtPriceX96` unchanged; `Redeemed` emitted. |
+| 7.4.2 | Cap enforced | Redemptions summing past `0.4 × L0` revert `RedemptionCapReached(requested, remaining)`; exactly at the cap succeeds; `remainingRedeemableLiquidity` reaches 0. |
+| 7.4.3 | Cap is on `L0`, not current | After partial redemptions the budget does not refill as `L_current` drops. |
+| 7.4.4 | Per-member allowance | `a > eligibleTokens` reverts `ExceedsContribution`; a second redeem of the remainder succeeds; a third reverts. |
+| 7.4.5 | Non-member | `redeem` reverts `NotMember`. |
+| 7.4.6 | Locked / not unlocked | Before PASS `NotUnlocked`; for a token without a locked position `PositionNotLocked`. |
+| 7.4.7 | Slippage | `minQuoteOut` above the payout reverts `SlippageExceeded`; no tokens burned, no liquidity removed. |
+| 7.4.8 | Native quote pool | Quote arrives as ETH via `receive()` and is forwarded to the member. |
+| 7.4.9 | Locker access | `redeemLiquidity` from anyone but the redemption contract reverts `NotRedemption`; `setRedemption` is owner-only and set-once. |
+| 7.4.10 | `redeemFor` access | Only the pool's staking vault (looked up via the hook by pool id) may call; another vault or EOA reverts `NotStakingVault`. |
+| 7.4.11 | Conservation | Across many redemptions: `Σ quotePaid == Σ quote taken from position`, `Σ tokensBurned == Σ a + Σ tokensFromPool`. |
+
+### 7.5 Staker exit (`WeirV2StakingReward.burnAndRedeem`)
+
+| # | Case | Assert |
+|---|---|---|
+| 7.5.1 | Locked until PASS | `EarlyExitNotUnlocked` before; after PASS a staker inside the 7-day lock can call it. |
+| 7.5.2 | Pays reward + quote | Accrued reward credited to escrow, pool quote sent to the staker, stake and `totalStaked` reduced, `BurnedAndRedeemed` emitted. |
+| 7.5.3 | Allowance bound | A staker whose stake exceeds their curve contribution can only redeem up to the contribution (`ExceedsContribution`), and can still `burnAndExit` or `unstake` the rest. |
+| 7.5.4 | Compounded stake | A staker who auto-compounded can redeem the grown stake up to their contribution; `unlockTime` irrelevant once unlocked. |
+| 7.5.5 | Unconfigured | Vault whose hook has no `poolRedemption` reverts `RedemptionNotConfigured`. |
+| 7.5.6 | `burnAndExit` unchanged | Existing behaviour and tests intact. |
+
+### 7.6 End-to-end demo (fork)
+
+Launch with campaign → graduate → trade → members open a proposal → members vote PASS (a non-member's `swapIn` reverts on screen) → `finalize` → three members redeem 10%, 20%, 15% of supply (the last one clipped by the 40% cap) → show pool price unchanged, supply down, 60% of liquidity still in the locker, a v4-only buyer's `redeem` reverting `NotMember`.
 
 ## 8. End-to-end demo runs (fork, official router) — `Idea2 §11`
 

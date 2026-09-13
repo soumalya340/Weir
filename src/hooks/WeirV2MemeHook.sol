@@ -32,6 +32,10 @@ interface WeirV2FutarchyProposalView {
     function vault() external view returns (address);
 }
 
+interface WeirV2PoolRedemptionView {
+    function memeHook() external view returns (address);
+}
+
 /**
  * @title WeirV2MemeHook
  * @notice Singleton Uniswap V4 hook shared by every graduated weir v2 pool.
@@ -108,6 +112,7 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     error StakingVaultNotSet();
     error StakingVaultDeployerNotSet();
     error StakingVaultDeployerMismatch();
+    error PoolRedemptionMismatch();
 
     event FactorySet(address factory);
     event PoolRegistered(PoolId indexed poolId, address memecoin, address quoteToken, address creator);
@@ -145,6 +150,7 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     event CompoundRouterUpdated(address swapVM, address weth);
     event StakingVaultCompoundingConfigured(PoolId indexed poolId, address vault);
     event StakingVaultDeployerSet(address deployer);
+    event PoolRedemptionSet(address redemption);
 
     IWeirV2FeeEscrow public immutable feeEscrow;
 
@@ -175,6 +181,10 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     // Deploys each pool's staking vault so this hook does not carry the
     // vault's creation code itself (EIP-170). Set once, after both exist.
     WeirV2StakingVaultDeployer public stakingVaultDeployer;
+    // WeirV2PoolRedemption: the dead-pool exit every futarchy proposal
+    // unlocks and every staking vault's burnAndRedeem routes through. Read
+    // live by vaults and proposals so it is one address for the protocol.
+    address public poolRedemption;
 
     mapping(PoolId => LaunchInfo) public launches;
     mapping(PoolId => PoolKey) private _poolKeys;
@@ -316,6 +326,17 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
         if (deployer.hook() != address(this)) revert StakingVaultDeployerMismatch();
         stakingVaultDeployer = deployer;
         emit StakingVaultDeployerSet(address(deployer));
+    }
+
+    /**
+     * @notice One-time wiring of the pool redemption contract.
+     */
+    function setPoolRedemption(address redemption) external onlyOwner {
+        if (poolRedemption != address(0)) revert AlreadySet();
+        if (redemption == address(0)) revert ZeroAddress();
+        if (WeirV2PoolRedemptionView(redemption).memeHook() != address(this)) revert PoolRedemptionMismatch();
+        poolRedemption = redemption;
+        emit PoolRedemptionSet(redemption);
     }
 
     /**

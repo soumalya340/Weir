@@ -18,6 +18,7 @@ import {WeirV2LaunchDeployer} from "../src/WeirV2LaunchDeployer.sol";
 import {WeirV2GraduationExecutor} from "../src/WeirV2GraduationExecutor.sol";
 import {WeirV2StakingVaultDeployer} from "../src/WeirV2StakingVaultDeployer.sol";
 import {WeirV2CommitmentRegistry} from "../src/WeirV2CommitmentRegistry.sol";
+import {WeirV2PoolRedemption} from "../src/WeirV2PoolRedemption.sol";
 import {ISwapVM} from "../src/interfaces/ISwapVM.sol";
 
 /**
@@ -66,7 +67,8 @@ contract DeployWeirV2 is Script {
             WeirV2LaunchDeployer launchDeployer,
             WeirV2GraduationExecutor graduationExecutor,
             WeirV2StakingVaultDeployer stakingVaultDeployer,
-            WeirV2CommitmentRegistry commitmentRegistry
+            WeirV2CommitmentRegistry commitmentRegistry,
+            WeirV2PoolRedemption poolRedemption
         )
     {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
@@ -108,14 +110,19 @@ contract DeployWeirV2 is Script {
         stakingVaultDeployer = new WeirV2StakingVaultDeployer(address(memeHook));
         console2.log("WeirV2StakingVaultDeployer:", address(stakingVaultDeployer));
 
+        poolRedemption = new WeirV2PoolRedemption(address(factory), locker, positionManager, memeHook);
+        console2.log("WeirV2PoolRedemption:", address(poolRedemption));
+
         // One-time wiring. Each of these reverts on a second call, so this
         // script is only safe to run once per set of freshly deployed
         // contracts.
         memeHook.setFactory(address(factory));
         memeHook.setBuybackVault(buybackVault);
         memeHook.setStakingVaultDeployer(stakingVaultDeployer);
+        memeHook.setPoolRedemption(address(poolRedemption));
         buybackVault.setFactory(address(factory));
         locker.setFactory(address(factory));
+        locker.setRedemption(address(poolRedemption));
         factory.setLaunchDeployer(launchDeployer);
         factory.setGraduationExecutor(graduationExecutor);
 

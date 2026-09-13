@@ -31,6 +31,7 @@ import {WeirV2GraduationMath} from "./libraries/WeirV2GraduationMath.sol";
 import {WeirV2BondingCurveMath} from "./libraries/WeirV2BondingCurveMath.sol";
 import {WeirV2FutarchyProposal} from "./WeirV2FutarchyProposal.sol";
 import {WeirV2CommitmentRegistry} from "./WeirV2CommitmentRegistry.sol";
+import {WeirV2PoolRedemption} from "./WeirV2PoolRedemption.sol";
 import {
     FeePolicySnapshot,
     GraduationPhase,
@@ -252,6 +253,7 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
     error GraduationRescueTooEarly(uint256 availableAt);
     error CommitmentRegistryNotSet();
     error CommitmentRegistryMismatch();
+    error PoolRedemptionNotSet();
 
     event TokenLaunched(
         address indexed token,
@@ -1070,6 +1072,11 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
         // inside the proposal constructor and confiscate the bond).
         proposal = address(new WeirV2FutarchyProposal{value: msg.value}(vault, msg.sender));
         memeHook.registerFutarchyProposal(poolId, proposal);
+        // Bind the proposal as the one contract allowed to open this pool
+        // for member redemption when PASS wins.
+        address redemption = memeHook.poolRedemption();
+        if (redemption == address(0)) revert PoolRedemptionNotSet();
+        WeirV2PoolRedemption(payable(redemption)).registerProposal(token, proposal);
     }
 
     /**

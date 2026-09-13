@@ -31,8 +31,8 @@ Every leg of the split, including the staker share, is snapshotted when the laun
 ### 9. Auto-compounding through official 1inch SwapVM
 Opt in once. Your fee rewards are held and swapped into more of the token through the official SwapVM router against any resting maker strategy (limit, TWAP, AMM, Aqua-shipped), then restaked **without resetting your 7-day unlock**. Pool fees become standing buy pressure. No custom opcodes anywhere.
 
-### 10. Futarchy decides early exit
-Anyone can post a small bond and open a MetaDAO-style decision market on one question: should stakers be allowed to burn their stake and exit before the lock? Two LMSR markets (PASS / FAIL) trade for three days; the higher-priced side wins and, if PASS, permanently unlocks `burnAndExit` on that vault.
+### 10. Dead pools get an exit, decided by the people who built them
+Trapped liquidity is the graveyard of every launchpad. On Weir, the members of a launch, the people who bought on its bonding curve or honoured a commitment, can open a MetaDAO-style decision market on one question: is this pool dead? Only members can vote; two LMSR markets (PASS / FAIL) trade for three days. If PASS wins, members may burn their tokens and take their pro-rata share of the locked Uniswap v4 liquidity in quote, up to a hard ceiling of **40%** of the pool. The other 60% stays locked forever, the price does not move, and stakers can take this exit straight out of the 7-day lock with their accrued fees. Outsiders and post-graduation buyers cannot vote a pool dead or drain it.
 
 ### 11. Buyback that vests instead of burning
 Bought-back tokens go into a five-year vest split between creator and protocol, so buybacks reduce float today without handing anyone an instant dump.
@@ -46,7 +46,7 @@ T+~1h   public partition sold ─► graduate: fill honourers via SwapVM, burn d
                                  seed v4 pool (locked forever), register hook
 T+…     every swap pays fees ──► stakers / protocol / buyback-vest / creator
         stakers auto-compound ─► SwapVM buys more token, restakes
-        futarchy market ───────► may unlock early exit
+        members vote pool dead ► burn tokens, redeem ≤ 40% of locked liquidity
 ```
 
 ## Where the integrations live (for verification)
@@ -69,8 +69,11 @@ T+…     every swap pays fees ──► stakers / protocol / buyback-vest / cre
 - [`src/libraries/SwapVMOrderLib.sol`](src/libraries/SwapVMOrderLib.sol) — Byte-exact program and taker-traits builders for SwapVM execution.
 - [`src/interfaces/ISwapVM.sol`](src/interfaces/ISwapVM.sol) — ABI mirror of the official SwapVM router interface.
 
-**Decision market**
-- [`src/WeirV2FutarchyProposal.sol`](src/WeirV2FutarchyProposal.sol), [`src/MemePredictionMarket/Binary.sol`](src/MemePredictionMarket/Binary.sol) — LMSR decision markets for staker early exit.
+**Decision market and dead-pool redemption**
+- [`src/WeirV2FutarchyProposal.sol`](src/WeirV2FutarchyProposal.sol) — member-gated PASS/FAIL LMSR markets; `finalize` unlocks redemption and early exit.
+- [`src/WeirV2PoolRedemption.sol`](src/WeirV2PoolRedemption.sol) — membership (curve buyers + filled committers), 40% ceiling, burn-for-quote against the locked v4 position.
+- [`src/WeirV2LaunchLocker.sol`](src/WeirV2LaunchLocker.sol) — `redeemLiquidity`, the locker's only liquidity path.
+- [`src/MemePredictionMarket/Binary.sol`](src/MemePredictionMarket/Binary.sol) — LMSR market with the `tradeGate` addition.
 
 ## Repository map
 

@@ -6,35 +6,50 @@ import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {IERC721ReceiverLike} from "./interfaces/ILaunchpadV2.sol";
 
 /**
  * @title WeirV2LaunchLocker
- * @notice Permanently holds the graduated Uniswap V4 position NFT for every
- * weir v2 launch. Unlike v1's locker, there is no `collectFees()` here: fee
+ * @notice Holds the graduated Uniswap V4 position NFT for every weir v2
+ * launch. Unlike v1's locker, there is no `collectFees()` here: fee
  * collection and distribution belong entirely to WeirV2MemeHook and
  * WeirV2FeeEscrow, since a V4 position accrues fees inside the singleton
- * PoolManager rather than on the NFT itself. This contract exposes no
- * withdrawal or arbitrary-call function, so locked liquidity can never be
- * removed by an administrator.
+ * PoolManager rather than on the NFT itself.
+ *
+ * There is no administrative withdrawal. The single path that can remove
+ * liquidity is `redeemLiquidity`, callable only by WeirV2PoolRedemption,
+ * which itself only acts after a pool's futarchy market has resolved PASS,
+ * only for launch members burning their own tokens, and only up to 40% of
+ * the position's liquidity. The other 60% can never leave.
  */
 contract WeirV2LaunchLocker is Ownable2Step, IERC721ReceiverLike {
     using SafeERC20 for IERC20;
 
+    uint256 private constant MODIFY_DEADLINE_WINDOW = 300;
+
     error NotFactory();
+    error NotRedemption();
     error AlreadyInitialized();
     error ZeroAddress();
     error PositionAlreadyLocked();
     error PositionNotHeld();
+    error PositionNotLocked();
     error NotPositionManager();
     error OwnershipCannotBeRenounced();
 
     event FactorySet(address factory);
+    event RedemptionSet(address redemption);
     event PositionLocked(address indexed token, uint256 indexed tokenId);
     event TokenSupplyLocked(address indexed token, uint256 amount);
+    event LiquidityRedeemed(address indexed token, uint256 indexed tokenId, uint256 liquidity, address recipient);
 
     address public immutable positionManager;
     address public factory;
+    // The only contract allowed to take liquidity out, set once.
+    address public redemption;
 
     mapping(address token => uint256 tokenId) public lockedPositions;
     mapping(address token => uint256 amount) public lockedTokenSupply;
@@ -62,6 +77,43 @@ contract WeirV2LaunchLocker is Ownable2Step, IERC721ReceiverLike {
         if (factory_ == address(0)) revert ZeroAddress();
         factory = factory_;
         emit FactorySet(factory_);
+    }
+
+    /**
+     * @notice One-time wiring of the redemption contract, the only caller of
+     * `redeemLiquidity`.
+     */
+    function setRedemption(address redemption_) external onlyOwner {
+        if (redemption != address(0)) revert AlreadyInitialized();
+        if (redemption_ == address(0)) revert ZeroAddress();
+        redemption = redemption_;
+        emit RedemptionSet(redemption_);
+    }
+
+    /**
+     * @notice Removes `liquidity` from a launch's locked position and sends
+     * both currencies to `recipient`. Restricted to WeirV2PoolRedemption,
+     * which enforces the futarchy unlock, membership and the 40% ceiling
+     * before ever calling this. Minimum amounts are zero here because the
+     * redemption contract checks the caller's own quote floor on what it
+     * actually receives.
+     */
+    function redeemLiquidity(address token, uint256 liquidity, address recipient) external {
+        if (msg.sender != redemption) revert NotRedemption();
+        if (!_locked[token]) revert PositionNotLocked();
+        if (recipient == address(0)) revert ZeroAddress();
+        uint256 tokenId = lockedPositions[token];
+        (PoolKey memory key,) = IPositionManager(positionManager).getPoolAndPositionInfo(tokenId);
+
+        bytes memory actions = abi.encodePacked(uint8(Actions.DECREASE_LIQUIDITY), uint8(Actions.TAKE_PAIR));
+        bytes[] memory params = new bytes[](2);
+        params[0] = abi.encode(tokenId, liquidity, uint128(0), uint128(0), bytes(""));
+        params[1] = abi.encode(key.currency0, key.currency1, recipient);
+        IPositionManager(positionManager).modifyLiquidities(
+            abi.encode(actions, params), block.timestamp + MODIFY_DEADLINE_WINDOW
+        );
+
+        emit LiquidityRedeemed(token, tokenId, liquidity, recipient);
     }
 
     /**

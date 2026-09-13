@@ -30,16 +30,22 @@ No SwapVM opcode is added or modified. Every SwapVM interaction uses stock instr
 │ WeirV2LauncherToken  │                        │ 1inch SwapVM     │◄──│ WeirV2StakingReward  │
 │ ERC20Burnable        │                        │ (official router)│   │ stake / harvest /    │
 └──────────────────────┘                        │ + Aqua (optional)│   │ auto-compound        │
-                                                └──────────────────┘   │ burnAndExit (futarchy)│
+                                                └──────────────────┘   │ burnAndRedeem        │
                                                                        └─────────┬────────────┘
-                                                                                 │ unlockEarlyExit
-                                                                       ┌─────────┴────────────┐
-                                                                       │ WeirV2FutarchyProposal│
-                                                                       │ PASS/FAIL LMSR markets│
-                                                                       └──────────────────────┘
+                                                              unlockEarlyExit    │ redeemFor
+                                                    ┌────────────────────────┐   ▼
+                                                    │ WeirV2FutarchyProposal │  ┌──────────────────────┐
+                                                    │ PASS/FAIL LMSR markets │─►│ WeirV2PoolRedemption │
+                                                    │ member-gated voting    │  │ 40% cap, membership  │
+                                                    └────────────────────────┘  └─────────┬────────────┘
+                                                                                          │ redeemLiquidity
+                                                                                ┌─────────▼────────────┐
+                                                                                │  WeirV2LaunchLocker  │
+                                                                                │  v4 position NFT     │
+                                                                                └──────────────────────┘
 
 Shared singletons: WeirV2FeeEscrow (claimable ledger), WeirV2BuybackVault (5-year vest),
-WeirV2LaunchLocker (permanent LP lock), WeirV2GraduationExecutor + WeirV2LaunchDeployer +
+WeirV2LaunchLocker (LP lock; ≤40% redeemable after a PASS), WeirV2GraduationExecutor + WeirV2LaunchDeployer +
 WeirV2StakingVaultDeployer (EIP-170 size helpers), WeirV2GraduationGuard (seed preflight).
 ```
 
@@ -59,7 +65,8 @@ T+~1h    sellable partition = 0     readyToGraduate() == true
 T+…      every swap                 hook takes hookFeeBps + creatorTax via afterSwap
          sweepPoolFees()            protocol / stakers / buyback-vest / creator
          stakers: setAutoCompound() rewards held; compound() buys more token via SwapVM, restakes
-         anyone: createFutarchyProposal()  decision market on unlocking early exit from the vault
+         member: createFutarchyProposal()  members vote whether the pool is dead
+         PASS → members burn tokens, take pro-rata quote from the locked position (≤ 40%)
 ```
 
 ---
@@ -76,11 +83,12 @@ T+…      every swap                 hook takes hookFeeBps + creatorTax via aft
 | `WeirV2MemeHook` | `src/hooks/WeirV2MemeHook.sol` | Singleton v4 hook: afterSwap fee capture, internal swaps, fee split, per-pool policy snapshot, vault registry | protocol |
 | `WeirV2StakingVaultDeployer` | `src/WeirV2StakingVaultDeployer.sol` | Deploys staking vaults for the hook (hook size helper) | protocol |
 | `WeirV2StakingReward` | `src/WeirV2StakingReward.sol` | Direct-stake real-yield vault, auto-compound via SwapVM, futarchy early exit | pool |
-| `WeirV2FutarchyProposal` | `src/WeirV2FutarchyProposal.sol` | One-question decision market (PASS/FAIL LMSR) that can unlock early exit | proposal |
-| `MemePredictionMarket/Binary.sol` | `src/MemePredictionMarket/` | Vendored LMSR binary market used by futarchy | market |
+| `WeirV2FutarchyProposal` | `src/WeirV2FutarchyProposal.sol` | Member-gated one-question decision market (PASS/FAIL LMSR) that unlocks pool redemption and early exit | proposal |
+| `WeirV2PoolRedemption` | `src/WeirV2PoolRedemption.sol` | Dead-pool exit: members burn tokens for pro-rata locked-liquidity quote, capped at 40% | protocol |
+| `MemePredictionMarket/Binary.sol` | `src/MemePredictionMarket/` | Vendored LMSR binary market used by futarchy, plus an optional trade gate | market |
 | `WeirV2BuybackVault` | `src/WeirV2BuybackVault.sol` | 5-year vest for bought-back tokens (creator/protocol split) | protocol |
 | `WeirV2FeeEscrow` | `src/WeirV2FeeEscrow.sol` | Pull-payment ledger for ETH and ERC-20 payouts | protocol |
-| `WeirV2LaunchLocker` | `src/WeirV2LaunchLocker.sol` | Holds the graduated position NFT and excess tokens forever | protocol |
+| `WeirV2LaunchLocker` | `src/WeirV2LaunchLocker.sol` | Holds the graduated position NFT and excess tokens; the only liquidity exit is `redeemLiquidity`, callable solely by the redemption contract | protocol |
 | `WeirV2GraduationExecutor` | `src/WeirV2GraduationExecutor.sol` | Permit2 + PositionManager mint (factory size helper) | protocol |
 | `WeirV2GraduationGuard` | `src/WeirV2GraduationGuard.sol` | Pure preflight: will v4 mint this seed? | protocol |
 | `ISwapVM` | `src/interfaces/ISwapVM.sol` | ABI mirror of the official router interface | — |
@@ -284,9 +292,28 @@ Deployed per pool in `_registerPool` (`:444`) through `WeirV2StakingVaultDeploye
 
 Spend and purchase are measured by balance deltas; `quoteSpent ≤ budget` and `tokensRestaked > 0` are enforced. Bought tokens are added to `users[account].amount` and `totalStaked`, `rewardDebt` is rebased, and **`unlockTime` is not touched**: compounding is reinvestment of earned reward, not a new deposit. Any leftover budget stays compoundable. The maker can be any resting SwapVM strategy (limit order, TWAP, XYC AMM, Aqua-shipped), so protocol fee flow becomes standing buy pressure through the official router with no custom opcode.
 
-### 6.5 Futarchy early exit
+### 6.5 Futarchy: the dead-pool exit
 
-`WeirV2FutarchyProposal` (`src/WeirV2FutarchyProposal.sol`) is a MetaDAO-style decision market narrowed to one question per vault: *should stakers be allowed to burn their stake and exit before the 7-day lock?* It deploys two independent LMSR `BinaryMarket`s (PASS / FAIL, vendored degencalls code), trades for `TRADING_WINDOW = 3 days`, and `finalize` (`:125`) resolves both markets and calls `unlockEarlyExit` on the vault if PASS priced above FAIL. A `PROPOSE_BOND` of 0.01 ETH prices out spam and is returned unconditionally. Only `WeirV2LaunchFactory.createFutarchyProposal` (`src/WeirV2LaunchFactory.sol:1057`) can wire a proposal into a vault, through the hook's validated `registerFutarchyProposal` (`:565`), so a fake vault or a look-alike proposal cannot seize the slot. Once unlocked, `burnAndExit` (`src/WeirV2StakingReward.sol:367`) burns the stake and pays accrued reward, bypassing the lock. There is no TWAP oracle; end-of-window LMSR price is accepted as the manipulation surface for this narrow use.
+Launchpads are littered with pools whose liquidity is trapped forever. Weir lets the people who built a launch decide, by decision market, to open it for redemption, and then take a bounded share of the locked liquidity out by burning their tokens.
+
+**Who counts as a member.** `WeirV2PoolRedemption.contribution(token, account)` = tokens bought on the bonding curve net of sells (`WeirV2BondingCurve.curveBought`, credited in `buy`, debited in `sell`) plus tokens delivered through a filled commitment (`WeirV2CommitmentRegistry` `filledTokens`). Buyers on the v4 pool after graduation are not members. Membership is both the vote gate and the per-account redemption allowance.
+
+**The market.** `WeirV2FutarchyProposal` deploys two independent LMSR `BinaryMarket`s (PASS / FAIL), trades for `TRADING_WINDOW = 3 days`, and `finalize` resolves both and, if PASS priced above FAIL, calls `unlockEarlyExit` on the staking vault and `unlockRedemption` on the redemption contract. Both markets have their `tradeGate` set to the proposal, whose `canTrade` asks `isMember(token, trader)`; the gate is the single addition made to the vendored market and applies to buying shares only (selling and claiming stay open). A `PROPOSE_BOND` of 0.01 ETH prices out spam and is returned unconditionally. Only `WeirV2LaunchFactory.createFutarchyProposal` can create a proposal: it wires it into the vault through the hook's validated `registerFutarchyProposal` and binds it on the redemption contract through `registerProposal`, so a look-alike proposal can neither seize a vault nor unlock a pool. There is no TWAP oracle; the end-of-window LMSR price is the accepted manipulation surface for this member-gated question.
+
+**Redemption.** After PASS, `WeirV2PoolRedemption` snapshots the position's liquidity `L0`; at most `MAX_REDEEMABLE_BPS = 40%` of `L0` may ever be removed, the other 60% stays locked forever. A member burning `a` tokens against supply `S`:
+
+```
+liquidity = a / S × L_current                       (proportional: pool price does not move)
+locker.redeemLiquidity(token, liquidity, redemption) → DECREASE_LIQUIDITY + TAKE_PAIR
+quoteOut → member (checked against minQuoteOut)
+burn(a + tokensFromPool)                            supply falls by both legs
+```
+
+Requirements: `a ≤ eligibleTokens(token, member)` (lifetime contribution minus already redeemed) and `liquidity ≤ remaining 40% budget`. The share is taken against total supply, which still counts pool- and locker-held tokens, so it is deliberately conservative.
+
+Two entry points: `redeem` for any member holding tokens, and `redeemFor`, callable only by the pool's staking vault, which `burnAndRedeem` uses so a staker can exit the 7-day lock straight into a redemption with their accrued reward paid alongside. The older `burnAndExit` (burn stake, receive only accrued reward) is kept for stakers who simply want out without a pool claim.
+
+**Locker change.** `WeirV2LaunchLocker` previously exposed no liquidity path at all. It now has exactly one, `redeemLiquidity`, restricted to the redemption contract, which in turn only acts after a PASS, for members, within the cap. Slippage minimums are zero at the locker because the redemption contract enforces the member's quote floor on what actually arrived.
 
 ---
 
@@ -314,11 +341,13 @@ The repo builds without the optimizer (`foundry.toml`), so raw `--sizes` numbers
 | `WeirV2StakingReward` | 3,580 | 7,033 | ✅ |
 | `WeirV2BondingCurve` | 10,022 | 11,100 | ✅ |
 | `WeirV2CommitmentRegistry` | — | 11,435 | ✅ |
-| `WeirV2LaunchFactory` | 36,085 | 37,940 | ❌ pre-existing; was already over before this work |
+| `WeirV2PoolRedemption` | — | 6,307 | ✅ |
+| `WeirV2LaunchLocker` | — | 3,335 | ✅ |
+| `WeirV2LaunchFactory` | 36,085 | 39,983 | ❌ pre-existing; was already over before this work |
 
 The factory oversize predates this change; splitting it further (e.g. moving creator-fee governance out) is a known follow-up, unrelated to the two ideas.
 
-Deployment order (`script/DeployWeirV2.s.sol`): escrow → hook (CREATE2 mined) → buyback vault → locker → factory → launch deployer → graduation executor → **staking vault deployer** → wiring → optional: **commitment registry + compound router** when `SWAP_VM_ROUTER` is set.
+Deployment order (`script/DeployWeirV2.s.sol`): escrow → hook (CREATE2 mined) → buyback vault → locker → factory → launch deployer → graduation executor → **staking vault deployer** → **pool redemption** → wiring (`hook.setPoolRedemption`, `locker.setRedemption`) → optional: **commitment registry + compound router** when `SWAP_VM_ROUTER` is set.
 
 ---
 
@@ -338,6 +367,13 @@ Deployment order (`script/DeployWeirV2.s.sol`): escrow → hook (CREATE2 mined) 
 | Settlement gas | ≤ 64 fills per campaign | One external `swap` per backer; the keeper path exists for a crossing buy that underfunds gas. |
 | Compound authorisation | Staker or fee-sweep operator | Caller picks the order and the floor; same boundary as fee sweeps. |
 | Auto-compound price protection | Caller's `minTokensOut`, router-scaled | No oracle in the system; same model as `minBuybackTokensOut`. |
+| Redemption ceiling | 40% of liquidity at unlock, protocol constant | "Not all": a dead-pool exit for builders, not a full unwind; 60% stays as permanent floor liquidity. |
+| Redemption share basis | `a / totalSupply` of current liquidity | Proportional removal keeps price fixed; counting pool/locker tokens in the denominator under-pays slightly rather than over-pays. |
+| Who may redeem / vote | Curve buyers (net) + filled committers | The reward is for those who took launch risk; v4 buyers and outsiders cannot vote a pool dead or drain it. |
+| Vote gate placement | `BinaryMarket.swapIn` only | Buying shares is the vote; selling and claiming stay open so nobody is trapped in a position. |
+| Vendored market | One additive change (`tradeGate`) | Member gating cannot be done from outside without wrapping every call; a single optional hook is the smallest edit. |
+
+Known gaps: no oracle on futarchy resolution (end-of-window LMSR price); `curveBought` follows the buyer, not the tokens, so a member may redeem with tokens acquired elsewhere up to their contribution; redemption of a native-quote pool pays ETH to the member and requires the redemption contract's `receive()`.
 
 ---
 
@@ -353,6 +389,9 @@ Deployment order (`script/DeployWeirV2.s.sol`): escrow → hook (CREATE2 mined) 
 8. `unlockTime` is unchanged by `compound`.
 9. `info.stakerFeeShareBps` never changes after `registerPool`, whatever the global does.
 10. Hook runtime size < 24,576 in an optimized build.
+11. `liquidityRedeemed ≤ 0.4 × liquidityAtUnlock` for every pool, forever.
+12. `redeemed[token][a] ≤ contribution(token, a)` for every member; non-members can neither redeem nor buy market shares.
+13. A redemption never changes the pool's `sqrtPriceX96`.
 
 ---
 
@@ -361,5 +400,5 @@ Deployment order (`script/DeployWeirV2.s.sol`): escrow → hook (CREATE2 mined) 
 - Uniswap v4: `src/hooks/WeirV2MemeHook.sol` (`_afterSwap :621`, `_executeInternalSwap :984`, `_distribute :857`), `src/WeirV2LaunchFactory.sol` (`createGraduatedPool :1329`, `registerPool call :1512`), `src/WeirV2GraduationExecutor.sol`, `src/WeirV2LaunchLocker.sol`.
 - 1inch SwapVM / Aqua: `src/WeirV2CommitmentRegistry.sol` (`commit :433`, `settle :330`, `_fill :541`, `_buildOrder :520`), `src/WeirV2StakingReward.sol` (`compound :262`), `src/libraries/SwapVMOrderLib.sol`, `src/interfaces/ISwapVM.sol`.
 - Curve partitions and trading gate: `src/WeirV2BondingCurve.sol` (`_initialize :285-317`, `releaseCommittedTokens :324`, `TradingNotOpen :473/:564`).
-- Futarchy: `src/WeirV2FutarchyProposal.sol`, `src/MemePredictionMarket/Binary.sol`, `src/WeirV2LaunchFactory.sol:1057`.
+- Futarchy and dead-pool redemption: `src/WeirV2FutarchyProposal.sol` (`canTrade`, `finalize`), `src/WeirV2PoolRedemption.sol` (`contribution`, `unlockRedemption`, `redeem`, `redeemFor`), `src/WeirV2LaunchLocker.sol` (`redeemLiquidity`), `src/WeirV2StakingReward.sol` (`burnAndRedeem`), `src/WeirV2BondingCurve.sol` (`curveBought`), `src/MemePredictionMarket/Binary.sol` (`tradeGate`), `src/WeirV2LaunchFactory.sol` (`createFutarchyProposal`).
 - Idea sources: `Ideas/Idea1.md`, `Ideas/Idea2.md`, `Ideas/Plan.md`.
