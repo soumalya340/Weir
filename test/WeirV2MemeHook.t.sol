@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -82,9 +83,9 @@ contract WeirV2MemeHookTest is Test {
         MockBurnableToken meme = new MockBurnableToken("M", "M");
         PoolId pid = _register(address(meme), address(0), 4000);
 
-        WeirV2MemeHook.LaunchInfo memory info = hook.launches(pid);
-        assertTrue(info.registered);
-        assertEq(info.stakerFeeShareBps, 4000);
+        (bool registered,,,,,,,,,,,, uint16 frozen,) = hook.launches(pid);
+        assertTrue(registered);
+        assertEq(frozen, 4000);
 
         MockBurnableToken bad = new MockBurnableToken("B", "B");
         (Currency c0, Currency c1) = (Currency.wrap(address(0)), Currency.wrap(address(bad)));
@@ -106,8 +107,8 @@ contract WeirV2MemeHookTest is Test {
         hook.setStakerFeeShareBps(1000);
         assertEq(hook.stakerFeeShareBps(), 1000);
 
-        WeirV2MemeHook.LaunchInfo memory info = hook.launches(pid);
-        assertEq(info.stakerFeeShareBps, 4000);
+        (,,,,,,,,,,,, uint16 frozen,) = hook.launches(pid);
+        assertEq(frozen, 4000);
     }
 
     // 5.3: currentFeePolicy carries the staker share.
@@ -118,20 +119,25 @@ contract WeirV2MemeHookTest is Test {
 
     // 5.4: deployer wiring — once only, non-zero, hook must match.
     function test_setStakingVaultDeployer_gating() public {
-        WeirV2MemeHook hook2 = _mineHook(makeAddr("owner2"));
+        address owner2 = makeAddr("owner2");
+        WeirV2MemeHook hook2 = _mineHook(owner2);
 
+        vm.prank(owner2);
         vm.expectRevert(WeirV2MemeHook.ZeroAddress.selector);
         hook2.setStakingVaultDeployer(WeirV2StakingVaultDeployer(address(0)));
 
         // Deployer bound to a different hook.
         WeirV2StakingVaultDeployer foreign = new WeirV2StakingVaultDeployer(address(hook));
+        vm.prank(owner2);
         vm.expectRevert(WeirV2MemeHook.StakingVaultDeployerMismatch.selector);
         hook2.setStakingVaultDeployer(foreign);
 
         WeirV2StakingVaultDeployer own = new WeirV2StakingVaultDeployer(address(hook2));
+        vm.prank(owner2);
         hook2.setStakingVaultDeployer(own);
         assertEq(address(hook2.stakingVaultDeployer()), address(own));
 
+        vm.prank(owner2);
         vm.expectRevert(WeirV2MemeHook.AlreadySet.selector);
         hook2.setStakingVaultDeployer(own);
     }
@@ -139,6 +145,7 @@ contract WeirV2MemeHookTest is Test {
     // 5.5: registration without a deployer reverts.
     function test_registerPool_withoutDeployer() public {
         WeirV2MemeHook bare = _mineHook(makeAddr("owner3"));
+        vm.prank(makeAddr("owner3"));
         bare.setFactory(factory);
 
         MockBurnableToken meme = new MockBurnableToken("M", "M");
@@ -169,7 +176,7 @@ contract WeirV2MemeHookTest is Test {
 
         // deployVault straight from anyone but the hook reverts.
         vm.expectRevert(WeirV2StakingVaultDeployer.NotHook.selector);
-        deployer.deployVault(IERC20Like(address(meme)), address(usdc), escrow);
+        deployer.deployVault(IERC20(address(meme)), address(usdc), escrow);
     }
 
     // 5.7: compound router propagation — at registration, or wired later.
@@ -187,9 +194,12 @@ contract WeirV2MemeHookTest is Test {
 
         // Pool registered before any router stays unwired until configured.
         // (Fresh hook without a router for the "before" leg.)
-        WeirV2MemeHook bare = _mineHook(makeAddr("owner4"));
+        address owner4 = makeAddr("owner4");
+        WeirV2MemeHook bare = _mineHook(owner4);
+        vm.prank(owner4);
         bare.setFactory(factory);
         WeirV2StakingVaultDeployer bareDeployer = new WeirV2StakingVaultDeployer(address(bare));
+        vm.prank(owner4);
         bare.setStakingVaultDeployer(bareDeployer);
         MockBurnableToken late = new MockBurnableToken("L", "L");
         PoolKey memory key = PoolKey({
@@ -204,10 +214,13 @@ contract WeirV2MemeHookTest is Test {
         PoolId pidLate = key.toId();
         assertEq(address(bare.stakingVaults(pidLate).swapVM()), address(0));
 
+        vm.prank(owner4);
         bare.setCompoundRouter(address(swapRouter), weth);
+        vm.prank(owner4);
         bare.configureStakingVaultCompounding(pidLate);
         assertEq(address(bare.stakingVaults(pidLate).swapVM()), address(swapRouter));
 
+        vm.prank(owner4);
         vm.expectRevert(WeirV2StakingReward.CompoundRouterAlreadySet.selector);
         bare.configureStakingVaultCompounding(pidLate);
     }
