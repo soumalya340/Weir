@@ -70,7 +70,8 @@ contract MockFeePolicy is IWeirV2FeePolicy {
             protocolFeeShareBps: uint16(protocolFeeShareBps_),
             buybackBurnBps: 5_000,
             hookFeeBps: 100,
-            maxInternalPriceImpactBps: 300
+            maxInternalPriceImpactBps: 300,
+            stakerFeeShareBps: 4_000
         });
     }
 }

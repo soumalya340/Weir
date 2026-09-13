@@ -25,6 +25,7 @@ import {BaseHook} from "@uniswap/v4-hooks-public/src/base/BaseHook.sol";
 import {WeirV2BuybackVault} from "../WeirV2BuybackVault.sol";
 import {WeirV2StakingReward} from "../WeirV2StakingReward.sol";
 import {FeePolicySnapshot, IWeirV2FeeEscrow, IWeirV2FeePolicy} from "../interfaces/ILaunchpadV2.sol";
+import {ISwapVM} from "../interfaces/ISwapVM.sol";
 
 interface WeirV2FutarchyProposalView {
     function vault() external view returns (address);
@@ -68,6 +69,10 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
         uint16 buybackBurnBps;
         uint16 hookFeeBps;
         uint16 maxInternalPriceImpactBps;
+        // Frozen per pool like the legs above. Previously read live off the
+        // global at every sweep, which let the owner reprice every pool's
+        // staker share retroactively over unswept fees (Ideas/Plan.md §3a).
+        uint16 stakerFeeShareBps;
         bool buybackEnabled;
     }
 
@@ -134,6 +139,8 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     event FeeSweepOperatorAuthorizationUpdated(address indexed operator, bool authorized);
     event FutarchyProposalRegistered(PoolId indexed poolId, address proposal);
     event BuybackEnabledUpdated(PoolId indexed poolId, bool enabled);
+    event CompoundRouterUpdated(address swapVM, address weth);
+    event StakingVaultCompoundingConfigured(PoolId indexed poolId, address vault);
 
     IWeirV2FeeEscrow public immutable feeEscrow;
 
@@ -156,6 +163,11 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     // feeSweepOperators so liveness does not depend on a single key.
     address public feeSweepOperator;
     mapping(address => bool) public feeSweepOperators;
+    // Official 1inch SwapVM router (and its WETH) handed to every staking
+    // vault at creation so stakers can auto-compound through it. Rotatable
+    // for vaults created afterwards; a vault already wired keeps its router.
+    address public swapVM;
+    address public weth;
 
     mapping(PoolId => LaunchInfo) public launches;
     mapping(PoolId => PoolKey) private _poolKeys;
@@ -276,10 +288,38 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
         emit ProtocolFeeShareUpdated(bps);
     }
 
+    /**
+     * @notice Sets the staker share launches created from now on snapshot.
+     * Pools already registered keep the share frozen in their LaunchInfo.
+     */
     function setStakerFeeShareBps(uint256 bps) external onlyOwner {
         if (bps > MAX_STAKER_FEE_SHARE_BPS) revert InvalidBps();
         stakerFeeShareBps = bps;
         emit StakerFeeShareUpdated(bps);
+    }
+
+    /**
+     * @notice Sets the SwapVM router new staking vaults are wired to for
+     * auto-compounding. `weth_` is the router's WETH, required so vaults on
+     * native-quote pools can pay fills in ETH.
+     */
+    function setCompoundRouter(address swapVM_, address weth_) external onlyOwner {
+        if (swapVM_ == address(0)) revert ZeroAddress();
+        swapVM = swapVM_;
+        weth = weth_;
+        emit CompoundRouterUpdated(swapVM_, weth_);
+    }
+
+    /**
+     * @notice Wires the current router into a vault that was created before
+     * one was configured. Reverts inside the vault if it is already wired.
+     */
+    function configureStakingVaultCompounding(PoolId poolId) external onlyOwner {
+        WeirV2StakingReward vault = stakingVaults[poolId];
+        if (address(vault) == address(0)) revert StakingVaultNotSet();
+        if (swapVM == address(0)) revert ZeroAddress();
+        vault.setCompoundRouter(ISwapVM(swapVM), weth);
+        emit StakingVaultCompoundingConfigured(poolId, address(vault));
     }
 
     function setBuybackBurnBps(uint256 bps) external onlyOwner {
@@ -348,7 +388,8 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
             protocolFeeShareBps: uint16(protocolFeeShareBps),
             buybackBurnBps: uint16(buybackBurnBps),
             hookFeeBps: uint16(hookFeeBps),
-            maxInternalPriceImpactBps: uint16(maxInternalPriceImpactBps)
+            maxInternalPriceImpactBps: uint16(maxInternalPriceImpactBps),
+            stakerFeeShareBps: uint16(stakerFeeShareBps)
         });
     }
 
@@ -401,6 +442,7 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
             policy.protocolFeeRecipient == address(0) || policy.protocolFeeShareBps > MAX_PROTOCOL_FEE_SHARE_BPS
                 || policy.buybackBurnBps > BASIS_POINTS || policy.hookFeeBps > MAX_HOOK_FEE_BPS
                 || policy.maxInternalPriceImpactBps == 0 || policy.maxInternalPriceImpactBps >= BASIS_POINTS
+                || policy.stakerFeeShareBps > MAX_STAKER_FEE_SHARE_BPS
         ) {
             revert InvalidBps();
         }
@@ -432,6 +474,7 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
             buybackBurnBps: policy.buybackBurnBps,
             hookFeeBps: policy.hookFeeBps,
             maxInternalPriceImpactBps: policy.maxInternalPriceImpactBps,
+            stakerFeeShareBps: policy.stakerFeeShareBps,
             buybackEnabled: buybackEnabled
         });
         _poolKeys[poolId] = key;
@@ -444,6 +487,13 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
         WeirV2StakingReward vault = new WeirV2StakingReward(address(this), IERC20(memecoin), quoteToken, feeEscrow);
         stakingVaults[poolId] = vault;
         emit StakingVaultRegistered(poolId, address(vault));
+        // Auto-compound is only reachable once a router is known; a pool
+        // registered before one is configured can be wired later through
+        // configureStakingVaultCompounding.
+        if (swapVM != address(0)) {
+            vault.setCompoundRouter(ISwapVM(swapVM), weth);
+            emit StakingVaultCompoundingConfigured(poolId, address(vault));
+        }
     }
 
     /**
@@ -791,13 +841,13 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
         uint256 protocolAmount = (totalQuote * info.protocolFeeShareBps) / BASIS_POINTS;
         uint256 creatorBucket = totalQuote - protocolAmount;
 
-        // Staker share is computed live off the current policy (unlike the
-        // buyback earmark, which is fixed per swap as it accrues), then
-        // carved out of the same post-protocol-share creator bucket the
+        // Staker share is read from the pool's frozen policy (like every
+        // other leg; it used to be read live off the global, see Plan §3a),
+        // then carved out of the same post-protocol-share creator bucket the
         // buyback leg draws from, before that leg is clamped. A pool with no
         // staking vault registered, or whose vault has nobody staked, simply
         // keeps this slice in the creator bucket instead of stranding it.
-        uint256 requestedStaker = (creatorBucket * stakerFeeShareBps) / BASIS_POINTS;
+        uint256 requestedStaker = (creatorBucket * info.stakerFeeShareBps) / BASIS_POINTS;
         uint256 stakerAmount = _fundStakingVault(poolId, info, requestedStaker);
         creatorBucket -= stakerAmount;
 

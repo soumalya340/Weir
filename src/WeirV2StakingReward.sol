@@ -4,7 +4,9 @@ pragma solidity ^0.8.26;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IWeirV2FeeEscrow} from "./interfaces/ILaunchpadV2.sol";
+import {IWeirV2FeeEscrow, IWeirV2FeePolicy} from "./interfaces/ILaunchpadV2.sol";
+import {ISwapVM} from "./interfaces/ISwapVM.sol";
+import {SwapVMOrderLib} from "./libraries/SwapVMOrderLib.sol";
 
 /**
  * @notice Narrow ERC20Burnable surface. WeirV2LauncherToken is the only
@@ -36,6 +38,14 @@ interface IERC20Burnable {
  * A 7-day lock re-arms on every top-up, mirroring the source's
  * WEEK_IN_SECONDS unlock_time: it discourages staking in front of a known
  * sweep and unstaking right after.
+ *
+ * Auto-compound (Ideas/Idea1.md): a staker may opt in to have their accrued
+ * quote reward kept here instead of paid out, then spent through the
+ * official 1inch SwapVM router against any resting maker order selling the
+ * memecoin (stock `LimitSwap` / `TWAPSwap` / AMM programs; no custom
+ * opcodes). Whatever is bought lands straight back in their principal
+ * without re-arming the unlock timer, so pool fees become buy pressure and
+ * a larger stake next period.
  */
 contract WeirV2StakingReward is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -52,6 +62,14 @@ contract WeirV2StakingReward is ReentrancyGuard {
     error NotFutarchyProposal();
     error FutarchyProposalAlreadySet();
     error EarlyExitNotUnlocked();
+    error CompoundRouterAlreadySet();
+    error CompoundNotConfigured();
+    error AutoCompoundDisabled();
+    error NotCompoundOperator();
+    error NothingToCompound();
+    error OrderTokenMismatch();
+    error CompoundBoughtNothing();
+    error CompoundOverspent(uint256 spent, uint256 budget);
 
     event Staked(address indexed user, uint256 amount, uint256 unlockTime);
     event Unstaked(address indexed user, uint256 amount);
@@ -60,6 +78,10 @@ contract WeirV2StakingReward is ReentrancyGuard {
     event BurnedAndExited(address indexed user, uint256 amount, uint256 reward);
     event FutarchyProposalSet(address proposal);
     event EarlyExitUnlocked(address proposal);
+    event CompoundRouterSet(address swapVM, address weth);
+    event AutoCompoundSet(address indexed user, bool enabled);
+    event RewardHeldForCompound(address indexed user, uint256 amount);
+    event Compounded(address indexed user, address indexed caller, uint256 quoteSpent, uint256 tokensRestaked);
 
     address public immutable hook;
     IERC20 public immutable stakeToken;
@@ -80,6 +102,12 @@ contract WeirV2StakingReward is ReentrancyGuard {
     // when its pass market wins, and never unset.
     bool public earlyExitUnlocked;
 
+    // Official 1inch SwapVM router compounds are executed through, and its
+    // WETH (native-quote pools pay the fill in ETH, which the router accepts
+    // only when the order's input token is its WETH). Wired once by the hook.
+    ISwapVM public swapVM;
+    address public weth;
+
     struct UserInfo {
         uint256 amount;
         uint256 rewardDebt;
@@ -87,6 +115,12 @@ contract WeirV2StakingReward is ReentrancyGuard {
     }
 
     mapping(address => UserInfo) public users;
+    // Opt-in flag: while set, accrued rewards accumulate in `compoundable`
+    // instead of being credited to the fee escrow.
+    mapping(address => bool) public autoCompound;
+    // Quote reward held here on the user's behalf, waiting to be swapped
+    // into more stake. Owed to the user; never part of the reward pot.
+    mapping(address => uint256) public compoundable;
 
     modifier onlyHook() {
         if (msg.sender != hook) revert NotHook();
@@ -121,7 +155,7 @@ contract WeirV2StakingReward is ReentrancyGuard {
         if (amount == 0) revert ZeroAmount();
 
         UserInfo storage u = users[msg.sender];
-        _settle(u);
+        _settle(msg.sender, u);
 
         stakeToken.safeTransferFrom(msg.sender, address(this), amount);
         u.amount += amount;
@@ -144,7 +178,7 @@ contract WeirV2StakingReward is ReentrancyGuard {
         if (amount > u.amount) revert InsufficientStake();
         if (block.timestamp < u.unlockTime) revert TooEarlyToUnstake();
 
-        _settle(u);
+        _settle(msg.sender, u);
 
         u.amount -= amount;
         totalStaked -= amount;
@@ -156,12 +190,141 @@ contract WeirV2StakingReward is ReentrancyGuard {
 
     /**
      * @notice Claims accrued reward without touching the staked balance or
-     * its unlock timer.
+     * its unlock timer. For an auto-compounding staker this moves the accrual
+     * into their compoundable balance instead of paying it out.
      */
     function harvest() external nonReentrant {
         UserInfo storage u = users[msg.sender];
-        _settle(u);
+        _settle(msg.sender, u);
     }
+
+    // ---------------------------------------------------------------------
+    // Auto-compound (SwapVM)
+    // ---------------------------------------------------------------------
+
+    /**
+     * @notice Wires the SwapVM router compounds execute through. Set once by
+     * the governing hook, which carries the protocol-wide router address.
+     */
+    function setCompoundRouter(ISwapVM swapVM_, address weth_) external onlyHook {
+        if (address(swapVM_) == address(0)) revert ZeroAddress();
+        if (address(swapVM) != address(0)) revert CompoundRouterAlreadySet();
+        // A native-quote pool pays its fills in ETH, which the router only
+        // takes as msg.value against its own WETH; without it compounding
+        // could never execute here.
+        if (quoteToken == address(0) && weth_ == address(0)) revert ZeroAddress();
+        swapVM = swapVM_;
+        weth = weth_;
+        emit CompoundRouterSet(address(swapVM_), weth_);
+    }
+
+    /**
+     * @notice Opts the caller in to (or out of) auto-compounding. Default is
+     * off. Reversible at any time; switching off pays any reward still held
+     * for compounding out through the escrow like an ordinary harvest.
+     * @dev Rewards accrued so far are settled first under the *old* mode,
+     * so a toggle never reclassifies what was already earned.
+     */
+    function setAutoCompound(bool enabled) external nonReentrant {
+        if (enabled && address(swapVM) == address(0)) revert CompoundNotConfigured();
+        UserInfo storage u = users[msg.sender];
+        _settle(msg.sender, u);
+        autoCompound[msg.sender] = enabled;
+        if (!enabled) {
+            uint256 held = compoundable[msg.sender];
+            if (held != 0) {
+                compoundable[msg.sender] = 0;
+                _payQuote(msg.sender, held);
+                emit Harvested(msg.sender, held);
+            }
+        }
+        emit AutoCompoundSet(msg.sender, enabled);
+    }
+
+    /**
+     * @notice Spends `account`'s held quote reward on the memecoin through
+     * the official SwapVM router and adds what was bought to their stake.
+     * Callable by the staker themselves or by a protocol fee-sweep operator
+     * (keeper), the same trust boundary every other slippage-sensitive
+     * action in the protocol uses, since whoever calls chooses the order and
+     * the floor.
+     * @param order Any resting maker order on the router whose pair is
+     * (memecoin, quote) — for a native-quote pool, (memecoin, WETH). Stock
+     * programs only: LimitSwap, TWAPSwap, XYC, ... whatever the maker shipped.
+     * @param signature The maker's EIP-712 signature over the order; empty
+     * for Aqua-mode orders (the router then skips signature checks).
+     * @param minTokensOut Floor on memecoin received for the full budget;
+     * the router scales it pro rata if the order can only fill part.
+     * @dev The stake grows but `unlockTime` is left alone: compounding is a
+     * reinvestment of reward already earned, not a fresh deposit, so it must
+     * not re-arm the 7-day lock against the staker (Idea1 §"why and what").
+     */
+    function compound(address account, ISwapVM.Order calldata order, bytes calldata signature, uint256 minTokensOut)
+        external
+        nonReentrant
+        returns (uint256 quoteSpent, uint256 tokensRestaked)
+    {
+        if (address(swapVM) == address(0)) revert CompoundNotConfigured();
+        if (msg.sender != account && !IWeirV2FeePolicy(hook).isFeeSweepOperator(msg.sender)) {
+            revert NotCompoundOperator();
+        }
+        if (!autoCompound[account]) revert AutoCompoundDisabled();
+
+        UserInfo storage u = users[account];
+        _settle(account, u);
+        uint256 budget = compoundable[account];
+        if (budget == 0) revert NothingToCompound();
+
+        // The pair the order quotes must be exactly this vault's memecoin and
+        // its quote (WETH standing in for native ETH). Order data begins with
+        // the two sorted token addresses (MakerTraitsLib.tokens).
+        address payToken = quoteToken == address(0) ? weth : quoteToken;
+        (address tokenA, address tokenB, bool payIsA) = SwapVMOrderLib.sortTokens(payToken, address(stakeToken));
+        if (order.data.length < 40) revert OrderTokenMismatch();
+        if (address(bytes20(order.data[0:20])) != tokenA || address(bytes20(order.data[20:40])) != tokenB) {
+            revert OrderTokenMismatch();
+        }
+
+        bytes memory takerData = SwapVMOrderLib.buildTakerTraits({
+            isExactIn: true,
+            isAToB: payIsA,
+            allowPartialFill: true,
+            strictThreshold: false,
+            threshold: minTokensOut,
+            deadline: 0,
+            signature: signature
+        });
+
+        uint256 tokensBefore = stakeToken.balanceOf(address(this));
+        if (quoteToken == address(0)) {
+            uint256 ethBefore = address(this).balance;
+            // The router wraps to WETH, pays the maker, and refunds any
+            // unspent value to this vault (receive() below).
+            swapVM.swap{value: budget}(order, budget, takerData);
+            quoteSpent = ethBefore - address(this).balance;
+        } else {
+            IERC20 quote = IERC20(quoteToken);
+            uint256 quoteBefore = quote.balanceOf(address(this));
+            quote.forceApprove(address(swapVM), budget);
+            swapVM.swap(order, budget, takerData);
+            quote.forceApprove(address(swapVM), 0);
+            quoteSpent = quoteBefore - quote.balanceOf(address(this));
+        }
+        tokensRestaked = stakeToken.balanceOf(address(this)) - tokensBefore;
+        if (quoteSpent > budget) revert CompoundOverspent(quoteSpent, budget);
+        if (tokensRestaked == 0) revert CompoundBoughtNothing();
+
+        compoundable[account] = budget - quoteSpent;
+        u.amount += tokensRestaked;
+        totalStaked += tokensRestaked;
+        u.rewardDebt = (u.amount * accRewardPerShare) / ACC_REWARD_SCALE;
+
+        emit Compounded(account, msg.sender, quoteSpent, tokensRestaked);
+    }
+
+    // ---------------------------------------------------------------------
+    // Futarchy early exit
+    // ---------------------------------------------------------------------
 
     /**
      * @notice Wires the one futarchy proposal contract allowed to unlock
@@ -208,7 +371,7 @@ contract WeirV2StakingReward is ReentrancyGuard {
         UserInfo storage u = users[msg.sender];
         if (amount > u.amount) revert InsufficientStake();
 
-        uint256 reward = _settle(u);
+        uint256 reward = _settle(msg.sender, u);
 
         u.amount -= amount;
         totalStaked -= amount;
@@ -217,6 +380,10 @@ contract WeirV2StakingReward is ReentrancyGuard {
         IERC20Burnable(address(stakeToken)).burn(amount);
         emit BurnedAndExited(msg.sender, amount, reward);
     }
+
+    // ---------------------------------------------------------------------
+    // Reward funding
+    // ---------------------------------------------------------------------
 
     /**
      * @notice Funds this pool's staker reward pot with `amount` of quote
@@ -242,7 +409,8 @@ contract WeirV2StakingReward is ReentrancyGuard {
     }
 
     /**
-     * @notice Reward a user would receive if they harvested right now.
+     * @notice Reward a user would receive if they harvested right now,
+     * excluding anything already held for compounding.
      */
     function pendingReward(address account) external view returns (uint256) {
         UserInfo storage u = users[account];
@@ -251,26 +419,41 @@ contract WeirV2StakingReward is ReentrancyGuard {
 
     /**
      * @dev Credits everything the accumulator owes `u` at its current
-     * checkpoint through the shared fee escrow, then re-bases its debt so
-     * the same reward is never paid twice. Returns the amount credited.
+     * checkpoint, then re-bases its debt so the same reward is never paid
+     * twice. Auto-compounding accounts keep the quote here for `compound`;
+     * everyone else is paid through the shared fee escrow. Returns the
+     * amount settled.
      */
-    function _settle(UserInfo storage u) private returns (uint256 accrued) {
+    function _settle(address account, UserInfo storage u) private returns (uint256 accrued) {
         accrued = (u.amount * accRewardPerShare) / ACC_REWARD_SCALE - u.rewardDebt;
         u.rewardDebt = (u.amount * accRewardPerShare) / ACC_REWARD_SCALE;
         if (accrued == 0) return 0;
 
-        if (quoteToken == address(0)) {
-            feeEscrow.credit{value: accrued}(msg.sender);
-        } else {
-            IERC20(quoteToken).forceApprove(address(feeEscrow), accrued);
-            feeEscrow.creditToken(msg.sender, quoteToken, accrued);
+        if (autoCompound[account]) {
+            compoundable[account] += accrued;
+            emit RewardHeldForCompound(account, accrued);
+            return accrued;
         }
-        emit Harvested(msg.sender, accrued);
+        _payQuote(account, accrued);
+        emit Harvested(account, accrued);
+    }
+
+    /**
+     * @dev Pays `amount` of quote to `account` through the shared fee escrow.
+     */
+    function _payQuote(address account, uint256 amount) private {
+        if (quoteToken == address(0)) {
+            feeEscrow.credit{value: amount}(account);
+        } else {
+            IERC20(quoteToken).forceApprove(address(feeEscrow), amount);
+            feeEscrow.creditToken(account, quoteToken, amount);
+        }
     }
 
     /**
      * @notice Accepts native ETH pulled from the hook when this pool's quote
-     * currency is native.
+     * currency is native, and unspent value the SwapVM router refunds after
+     * a partial compound fill.
      */
     receive() external payable {}
 }

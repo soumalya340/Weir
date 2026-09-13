@@ -30,6 +30,7 @@ import {WeirV2GraduationGuard} from "./WeirV2GraduationGuard.sol";
 import {WeirV2GraduationMath} from "./libraries/WeirV2GraduationMath.sol";
 import {WeirV2BondingCurveMath} from "./libraries/WeirV2BondingCurveMath.sol";
 import {WeirV2FutarchyProposal} from "./WeirV2FutarchyProposal.sol";
+import {WeirV2CommitmentRegistry} from "./WeirV2CommitmentRegistry.sol";
 import {
     FeePolicySnapshot,
     GraduationPhase,
@@ -127,7 +128,7 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
         //
         // Call previewLaunchEconomics(launchConfigId, pairToken) to obtain
         // this value rather than encoding it by hand. The preimage is
-        // keccak256(abi.encode(...)) over ten values in this order:
+        // keccak256(abi.encode(...)) over eleven values in this order:
         //
         //   uint256 phantomQuote
         //   uint256 graduationThreshold
@@ -139,6 +140,7 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
         //   uint16  policy.buybackBurnBps
         //   uint16  policy.hookFeeBps
         //   uint16  policy.maxInternalPriceImpactBps
+        //   uint16  policy.stakerFeeShareBps
         //
         // It spans every owner-controlled term that fixes what the creator is
         // buying, not the phantom reserve and threshold alone, so the supply,
@@ -248,6 +250,8 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
     error GraduationSeedNotViable();
     error SupplyTooHigh();
     error GraduationRescueTooEarly(uint256 availableAt);
+    error CommitmentRegistryNotSet();
+    error CommitmentRegistryMismatch();
 
     event TokenLaunched(
         address indexed token,
@@ -291,6 +295,8 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
     event LaunchGraduationRescued(
         address indexed token, address indexed recipient, uint256 quoteAmount, uint256 tokenAmount
     );
+    event CommitmentRegistrySet(address registry);
+    event CommitmentsSettled(address indexed token, uint256 quoteForwarded);
 
     IPoolManager public immutable poolManager;
     IPositionManager public immutable positionManager;
@@ -306,6 +312,10 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
     WeirV2LaunchDeployer public launchDeployer;
     address public launchForwarder;
     WeirV2GraduationGuard public immutable graduationGuard;
+    // Optional. Holds bonded pre-launch commitments (Ideas/Idea2.md) and
+    // settles them through SwapVM inside `graduate`. Launches without a
+    // campaign never touch it.
+    WeirV2CommitmentRegistry public commitmentRegistry;
 
     // Ceiling on the creator-chosen trade tax, mirroring MAX_CURVE_FEE_BPS's
     // existing pattern for the protocol's own base fee.
@@ -626,6 +636,18 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
     }
 
     /**
+     * @notice One-time wiring of the commitment registry. Set after both are
+     * deployed since the registry's constructor needs this factory's address.
+     */
+    function setCommitmentRegistry(WeirV2CommitmentRegistry registry) external onlyOwner {
+        if (address(commitmentRegistry) != address(0)) revert AlreadySet();
+        if (address(registry) == address(0)) revert ZeroAddress();
+        if (registry.factory() != address(this)) revert CommitmentRegistryMismatch();
+        commitmentRegistry = registry;
+        emit CommitmentRegistrySet(address(registry));
+    }
+
+    /**
      * @notice Permanently disabled. An ownerless factory could never approve
      * a pairToken, adjust fee ceilings, or recover a creator's fee recipient,
      * and every launch already live would keep depending on those powers.
@@ -684,9 +706,20 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
                 policy.protocolFeeShareBps,
                 policy.buybackBurnBps,
                 policy.hookFeeBps,
-                policy.maxInternalPriceImpactBps
+                policy.maxInternalPriceImpactBps,
+                policy.stakerFeeShareBps
             )
         );
+    }
+
+    /**
+     * @dev The "no campaign" sentinel every plain launch entrypoint passes:
+     * `_launchToken` keys off `targetQuote == 0`.
+     */
+    function _noCampaign() private pure returns (WeirV2CommitmentRegistry.CampaignParams memory) {
+        return WeirV2CommitmentRegistry.CampaignParams({
+            discountBps: 0, targetQuote: 0, oversubscriptionBps: 0, tradingOpensAt: 0, allowlistRoot: bytes32(0)
+        });
     }
 
     /**
@@ -703,7 +736,29 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
         nonReentrant
         returns (address token, address curve)
     {
-        return _launchToken(params, launchConfigId, pairToken, msg.sender);
+        return _launchToken(params, launchConfigId, pairToken, msg.sender, _noCampaign());
+    }
+
+    /**
+     * @notice Launches with a bonded commitment campaign (Ideas/Idea2.md,
+     * Ideas/Plan.md §1). The token and curve deploy now, so backers sign
+     * SwapVM orders against the real token address, but the curve only opens
+     * at `campaign.tradingOpensAt` (at least 24h out). Until then backers
+     * pledge quote that stays in their wallets and post a 20% bond with the
+     * commitment registry. `committedTokens` is derived by the registry from
+     * the creator's discount and target and fenced off from the public
+     * curve; it settles, burns, and seeds at graduation.
+     */
+    function launchTokenWithCampaign(
+        TokenParams calldata params,
+        uint256 launchConfigId,
+        address pairToken,
+        WeirV2CommitmentRegistry.CampaignParams calldata campaign,
+        address[] calldata snipeTaxExemptions
+    ) external payable nonReentrant returns (address token, address curve) {
+        if (campaign.targetQuote == 0) revert InvalidTokenParams();
+        (token, curve) = _launchToken(params, launchConfigId, pairToken, msg.sender, campaign);
+        _exemptFromSnipeTax(curve, snipeTaxExemptions);
     }
 
     /**
@@ -720,7 +775,7 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
         address pairToken,
         address[] calldata snipeTaxExemptions
     ) external payable nonReentrant returns (address token, address curve) {
-        (token, curve) = _launchToken(params, launchConfigId, pairToken, msg.sender);
+        (token, curve) = _launchToken(params, launchConfigId, pairToken, msg.sender, _noCampaign());
         _exemptFromSnipeTax(curve, snipeTaxExemptions);
     }
 
@@ -739,7 +794,7 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
         address[] calldata snipeTaxExemptions
     ) external payable nonReentrant returns (address token, address curve) {
         if (msg.sender != launchForwarder) revert NotLaunchForwarder();
-        (token, curve) = _launchToken(params, launchConfigId, pairToken, originalDeployer);
+        (token, curve) = _launchToken(params, launchConfigId, pairToken, originalDeployer, _noCampaign());
         _exemptFromSnipeTax(curve, snipeTaxExemptions);
     }
 
@@ -763,7 +818,8 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
         TokenParams calldata params,
         uint256 launchConfigId,
         address pairToken,
-        address originalDeployer
+        address originalDeployer,
+        WeirV2CommitmentRegistry.CampaignParams memory campaign
     ) private returns (address token, address curve) {
         if (address(launchDeployer) == address(0)) revert LaunchDeployerNotSet();
         _requireLaunchDependenciesWired();
@@ -842,7 +898,18 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
                 socials: params.socials
             })
         );
-        WeirV2BondingCurve(curve).initialize(token);
+        if (campaign.targetQuote != 0) {
+            if (address(commitmentRegistry) == address(0)) revert CommitmentRegistryNotSet();
+            // The registry derives the tranche from the creator's discount and
+            // target against this launch's own P₀ = phantomQuote / supply, and
+            // rejects a native quote or a window shorter than 24h.
+            uint256 committedTokens = commitmentRegistry.openCampaign(
+                token, curve, originalDeployer, pairToken, phantomQuote, config.supply, campaign
+            );
+            WeirV2BondingCurve(curve).initialize(token, committedTokens, campaign.tradingOpensAt);
+        } else {
+            WeirV2BondingCurve(curve).initialize(token);
+        }
 
         // The creator's own addresses never count as snipers on their own
         // launch: an atomic dev buy lands in the launch second, exactly when
@@ -1103,6 +1170,17 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
      * factory and halts curve trading. Purely internal to the curve's own
      * balances, so it is safe for the curve to call this automatically the
      * instant a buy crosses the graduation threshold.
+     *
+     * A launch with a commitment campaign settles it here first, in the
+     * graduation path proper (Ideas/Idea2.md §7): the tranche is released to
+     * the registry, every pledge is filled through SwapVM or marked
+     * defected, the unsettled remainder is burned, and only then is the
+     * curve swept and the seed sized on what actually arrived. The curve's
+     * own auto-graduation wraps this call in try/catch, so a settlement that
+     * reverts structurally surfaces as `AutoGraduationFailed` and is retried
+     * here directly by a keeper, where the revert is visible; a single
+     * backer's failed fill never reverts anything, it just costs them their
+     * bond.
      */
     function graduate(address token) external nonReentrant {
         LaunchedToken storage launch = _launchedTokens[token];
@@ -1112,8 +1190,11 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
         if (!curve.readyToGraduate()) {
             revert WeirV2BondingCurve.NotReadyToGraduate();
         }
-        _assertGraduationSeedable(token, launch, curve.realQuoteReserve(), curve.tokenReserve());
-        _sweepCurve(token, launch, curve);
+        uint256 settledQuote = _settleCommitments(token, launch, curve);
+        // Preflight after settlement so the seed is judged on the full quote,
+        // settled pledges included. A refusal reverts the settlement with it.
+        _assertGraduationSeedable(token, launch, curve.realQuoteReserve() + settledQuote, curve.tokenReserve());
+        _sweepCurve(token, launch, curve, settledQuote);
     }
 
     /**
@@ -1141,16 +1222,44 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
             revert GraduationStillViable();
         }
 
-        _sweepCurve(token, launch, curve);
+        // Settle here too, so a stuck launch still resolves its backers'
+        // bonds and burns the tranche rather than stranding both.
+        uint256 settledQuote = _settleCommitments(token, launch, curve);
+        _sweepCurve(token, launch, curve, settledQuote);
         emit LaunchForceSwept(token);
+    }
+
+    /**
+     * @dev Releases a campaign's tranche to the registry and settles it,
+     * returning the quote the registry forwarded here (settled pledges, plus
+     * forfeited bonds when nobody honoured). Zero for launches without a
+     * campaign. Measured as this factory's balance delta so the seed can
+     * only ever be sized on quote that physically arrived.
+     */
+    function _settleCommitments(address token, LaunchedToken storage launch, WeirV2BondingCurve curve)
+        private
+        returns (uint256 settledQuote)
+    {
+        WeirV2CommitmentRegistry registry = commitmentRegistry;
+        if (address(registry) == address(0) || !registry.hasCampaign(token)) return 0;
+
+        curve.releaseCommittedTokens(address(registry));
+        uint256 before = _quoteBalance(launch.pairToken);
+        registry.settle(token);
+        settledQuote = _quoteBalance(launch.pairToken) - before;
+        emit CommitmentsSettled(token, settledQuote);
     }
 
     /**
      * @dev Moves a ready curve's reserves into this factory and records the
      * Swept phase. Shared by the normal graduation path and the forced sweep,
      * which differ only in the preflight that precedes them.
+     * @param extraQuote Quote already held here for this launch's seed on
+     * top of the curve's reserves (settled commitments).
      */
-    function _sweepCurve(address token, LaunchedToken storage launch, WeirV2BondingCurve curve) private {
+    function _sweepCurve(address token, LaunchedToken storage launch, WeirV2BondingCurve curve, uint256 extraQuote)
+        private
+    {
         // Record what this factory actually received rather than what the
         // curve reported sending. A quote asset that does not deliver its
         // full nominal amount would otherwise leave the launch claiming a
@@ -1160,6 +1269,7 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
         (, uint256 tokenOut) = curve.graduate(address(this));
         uint256 quoteOut = _quoteBalance(launch.pairToken) - quoteBefore;
         if (quoteOut == 0) revert NothingToGraduate();
+        quoteOut += extraQuote;
 
         launch.sweptQuote = quoteOut;
         launch.sweptTokens = tokenOut;

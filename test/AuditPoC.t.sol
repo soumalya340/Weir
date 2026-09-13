@@ -85,7 +85,8 @@ contract PoCFeePolicy is IWeirV2FeePolicy {
             protocolFeeShareBps: 3000,
             buybackBurnBps: 5000,
             hookFeeBps: 100,
-            maxInternalPriceImpactBps: 300
+            maxInternalPriceImpactBps: 300,
+            stakerFeeShareBps: 4_000
         });
     }
 }
@@ -435,7 +436,8 @@ contract AuditPoC is Test {
             protocolFeeShareBps: 3000,
             buybackBurnBps: 5000,
             hookFeeBps: 100,
-            maxInternalPriceImpactBps: 300
+            maxInternalPriceImpactBps: 300,
+            stakerFeeShareBps: 4_000
         });
         memeHook.registerPool(key, address(launchToken), creator, creator, 0, false, policy);
 
@@ -612,7 +614,8 @@ contract AuditPoC is Test {
             protocolFeeShareBps: 3000,
             buybackBurnBps: 5000,
             hookFeeBps: 100,
-            maxInternalPriceImpactBps: 300
+            maxInternalPriceImpactBps: 300,
+            stakerFeeShareBps: 4_000
         });
         vm.prank(address(factory));
         memeHook.registerPool(key, token, creator, creator, 0, false, policy);

@@ -53,7 +53,6 @@ struct FeePolicySnapshot {
  */
 interface IWeirV2FeePolicy {
     function protocolFeeShareBps() external view returns (uint256);
-    function stakerFeeShareBps() external view returns (uint256);
     function buybackBurnBps() external view returns (uint256);
     function protocolFeeRecipient() external view returns (address);
     function feeEscrow() external view returns (IWeirV2FeeEscrow);
