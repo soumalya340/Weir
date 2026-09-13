@@ -51,6 +51,8 @@ contract WeirV2BondingCurve is ReentrancyGuard {
     error MinimumOutputRequired();
     error NativeValueMismatch(uint256 supplied, uint256 expected);
     error UnexpectedNativeValue();
+    error TradingNotOpen(uint256 opensAt);
+    error CommittedTokensTooLarge();
 
     // `fee` and `tax` are reported separately because they fund different
     // parties: the fee splits across protocol, buyback and creator, while the
@@ -75,6 +77,7 @@ contract WeirV2BondingCurve is ReentrancyGuard {
     event CreatorFeeRecipientUpdated(address indexed previousRecipient, address indexed newRecipient);
     event BuybackEnabledUpdated(bool enabled);
     event AutoGraduationFailed(address indexed token, uint256 gasRemaining);
+    event CommittedTokensReleased(address indexed to, uint256 amount);
 
     // Not immutable: the token's constructor needs this curve's real address,
     // so the factory deploys the curve first, then the token, then wires the
@@ -141,6 +144,18 @@ contract WeirV2BondingCurve is ReentrancyGuard {
     // and handed to the graduated pool intact. Everything above it is the
     // sellable allocation, and graduation is exactly its exhaustion.
     uint256 public reservedTokens;
+    // Third partition (Ideas/Idea2.md §4): the pre-launch commitment tranche.
+    // Held by this curve but deliberately kept *outside* `trackedTokens`, so
+    // it never enters the constant-product price, can never be bought on the
+    // public curve, and cannot be sold into. It leaves only through
+    // `releaseCommittedTokens`, which the factory calls at graduation so the
+    // commitment registry can settle and burn it before the pool is seeded.
+    // Zero for launches without a campaign.
+    uint256 public committedTokens;
+    // Timestamp trading opens. Zero (or in the past) means immediately. A
+    // commitment campaign sets it >= 24h out so backers pledge against a
+    // token and curve that already exist but cannot yet be traded.
+    uint256 public tradingOpensAt;
     // Addresses the factory has declared exempt from the launch-window snipe
     // tax (creator and any creator-supplied allowlist).
     mapping(address => bool) public snipeTaxExempt;
@@ -255,23 +270,66 @@ contract WeirV2BondingCurve is ReentrancyGuard {
      * amounts at the same price on every launch.
      */
     function initialize(address token_) external onlyFactory {
+        _initialize(token_, 0, 0);
+    }
+
+    /**
+     * @notice Same wiring, plus a commitment campaign: `committedTokens_` is
+     * fenced off from the public curve and trading only opens at
+     * `tradingOpensAt_`. The public partition (supply minus the tranche) is
+     * what the constant-product curve and the graduation point are derived
+     * from, so a launch with a campaign still graduates at exactly
+     * `graduationThreshold` of real public quote; the tranche is pure upside
+     * settled on top of that at graduation, never counted toward it.
+     */
+    function initialize(address token_, uint256 committedTokens_, uint256 tradingOpensAt_) external onlyFactory {
+        _initialize(token_, committedTokens_, tradingOpensAt_);
+    }
+
+    function _initialize(address token_, uint256 committedTokens_, uint256 tradingOpensAt_) private {
         if (token != address(0)) revert AlreadyInitialized();
         if (token_ == address(0)) revert ZeroAddress();
         token = token_;
 
         uint256 supply = IERC20(token_).totalSupply();
-        uint256 reserved = Math.mulDiv(supply, phantomQuote, phantomQuote + graduationThreshold);
+        if (committedTokens_ >= supply) revert CommittedTokensTooLarge();
+        uint256 publicSupply = supply - committedTokens_;
+        uint256 reserved = Math.mulDiv(publicSupply, phantomQuote, phantomQuote + graduationThreshold);
         // A launch whose allocation rounds away has nothing to seed its pool
         // with, and its final buy would revert against an empty token side.
         // Rejecting the config here fails at launch rather than at graduation.
-        if (reserved == 0 || reserved >= supply) revert InvalidLaunchEconomics();
+        if (reserved == 0 || reserved >= publicSupply) revert InvalidLaunchEconomics();
         reservedTokens = reserved;
-        // The allocation the curve actually received, which is the whole
-        // supply: the token mints to this curve in its own constructor.
-        trackedTokens = IERC20(token_).balanceOf(address(this));
-        launchedAt = block.timestamp;
+        // The allocation the curve actually received is the whole supply
+        // (the token mints to this curve in its own constructor); only the
+        // public partition is tracked as tradeable reserve.
+        uint256 held = IERC20(token_).balanceOf(address(this));
+        if (held < committedTokens_) revert CommittedTokensTooLarge();
+        trackedTokens = held - committedTokens_;
+        committedTokens = committedTokens_;
+        tradingOpensAt = tradingOpensAt_;
+        // The snipe-tax clock starts when trading actually opens.
+        launchedAt = tradingOpensAt_ > block.timestamp ? tradingOpensAt_ : block.timestamp;
 
         emit Initialized(token_);
+    }
+
+    /**
+     * @notice Hands the fenced-off commitment tranche to `to` (the
+     * commitment registry) so it can be settled through SwapVM and the
+     * unsettled remainder burned. Only once the curve is ready to graduate,
+     * and only by the factory from inside its graduation path, so the
+     * tranche can neither be released early nor land anywhere else.
+     */
+    function releaseCommittedTokens(address to) external onlyFactory returns (uint256 amount) {
+        if (to == address(0)) revert ZeroAddress();
+        if (graduated) revert AlreadyGraduated();
+        if (!readyToGraduate()) revert NotReadyToGraduate();
+        amount = committedTokens;
+        if (amount == 0) return 0;
+        committedTokens = 0;
+        IERC20(token).safeTransfer(to, amount);
+        emit CommittedTokensReleased(to, amount);
     }
 
     /**
@@ -283,6 +341,9 @@ contract WeirV2BondingCurve is ReentrancyGuard {
         if (snipeTaxExempt[account] || snipeTaxStartBps == 0 || snipeTaxSeconds == 0 || launchedAt == 0) {
             return 0;
         }
+        // Before a delayed open the tax is at its peak; trading is closed
+        // anyway, so this only keeps the view from underflowing.
+        if (block.timestamp < launchedAt) return snipeTaxStartBps;
         uint256 elapsed = block.timestamp - launchedAt;
         if (elapsed >= snipeTaxSeconds) return 0;
         return (snipeTaxStartBps * (snipeTaxSeconds - elapsed)) / snipeTaxSeconds;
@@ -290,6 +351,9 @@ contract WeirV2BondingCurve is ReentrancyGuard {
 
     /**
      * @notice Tokens still available to buy before the curve graduates.
+     * @dev The commitment tranche is not part of `trackedTokens`, so this is
+     * already `public partition − reservedTokens`; it can never reach into
+     * `committedTokens` (Idea2 §4's third partition).
      */
     function sellableTokens() public view returns (uint256) {
         uint256 tracked = trackedTokens;
@@ -406,6 +470,7 @@ contract WeirV2BondingCurve is ReentrancyGuard {
         returns (uint256 tokensOut)
     {
         if (graduated) revert CurveGraduated();
+        if (block.timestamp < tradingOpensAt) revert TradingNotOpen(tradingOpensAt);
         if (recipient == address(0)) revert ZeroAddress();
 
         uint256 received = _receiveQuote(quoteIn);
@@ -496,6 +561,7 @@ contract WeirV2BondingCurve is ReentrancyGuard {
         returns (uint256 quoteOut)
     {
         if (graduated || readyToGraduate()) revert CurveGraduated();
+        if (block.timestamp < tradingOpensAt) revert TradingNotOpen(tradingOpensAt);
         if (tokensIn == 0) revert ZeroAmount();
         if (recipient == address(0)) revert ZeroAddress();
 

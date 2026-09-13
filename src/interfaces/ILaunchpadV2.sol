@@ -39,6 +39,11 @@ struct FeePolicySnapshot {
     uint16 buybackBurnBps;
     uint16 hookFeeBps;
     uint16 maxInternalPriceImpactBps;
+    // Share of the post-protocol creator bucket routed to the pool's
+    // staking vault. Frozen per launch like every other leg so the owner
+    // cannot retroactively reprice what auto-compounding stakers opted into
+    // (Ideas/Plan.md §3a).
+    uint16 stakerFeeShareBps;
 }
 
 /**
@@ -48,6 +53,7 @@ struct FeePolicySnapshot {
  */
 interface IWeirV2FeePolicy {
     function protocolFeeShareBps() external view returns (uint256);
+    function stakerFeeShareBps() external view returns (uint256);
     function buybackBurnBps() external view returns (uint256);
     function protocolFeeRecipient() external view returns (address);
     function feeEscrow() external view returns (IWeirV2FeeEscrow);
