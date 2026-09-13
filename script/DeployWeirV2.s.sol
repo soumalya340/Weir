@@ -16,6 +16,9 @@ import {WeirV2LaunchLocker} from "../src/WeirV2LaunchLocker.sol";
 import {WeirV2LaunchFactory} from "../src/WeirV2LaunchFactory.sol";
 import {WeirV2LaunchDeployer} from "../src/WeirV2LaunchDeployer.sol";
 import {WeirV2GraduationExecutor} from "../src/WeirV2GraduationExecutor.sol";
+import {WeirV2StakingVaultDeployer} from "../src/WeirV2StakingVaultDeployer.sol";
+import {WeirV2CommitmentRegistry} from "../src/WeirV2CommitmentRegistry.sol";
+import {ISwapVM} from "../src/interfaces/ISwapVM.sol";
 
 /**
  * @title DeployWeirV2
@@ -36,6 +39,11 @@ import {WeirV2GraduationExecutor} from "../src/WeirV2GraduationExecutor.sol";
  *   INITIAL_LAUNCH_FEE      wei, defaults to 0
  *   CREATE2_DEPLOYER        defaults to the canonical
  *                           0x4e59b44847b379578588920cA78FbF26c0B4956C proxy
+ *   SWAP_VM_ROUTER          official 1inch SwapVM router (SwapVMRouter /
+ *                           LimitSwapVMRouter, or a local-fork redeploy).
+ *                           When set, deploys and wires the commitment
+ *                           registry and enables staking-vault auto-compound
+ *                           through it; when unset both stay off.
  *
  * This script only deploys and wires the core system; it does not call
  * `addLaunchConfig`, since curve economics (supply, phantom quote,
@@ -56,7 +64,9 @@ contract DeployWeirV2 is Script {
             WeirV2LaunchLocker locker,
             WeirV2LaunchFactory factory,
             WeirV2LaunchDeployer launchDeployer,
-            WeirV2GraduationExecutor graduationExecutor
+            WeirV2GraduationExecutor graduationExecutor,
+            WeirV2StakingVaultDeployer stakingVaultDeployer,
+            WeirV2CommitmentRegistry commitmentRegistry
         )
     {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
@@ -95,15 +105,29 @@ contract DeployWeirV2 is Script {
         graduationExecutor = new WeirV2GraduationExecutor(positionManager, permit2, locker, address(factory));
         console2.log("WeirV2GraduationExecutor:", address(graduationExecutor));
 
+        stakingVaultDeployer = new WeirV2StakingVaultDeployer(address(memeHook));
+        console2.log("WeirV2StakingVaultDeployer:", address(stakingVaultDeployer));
+
         // One-time wiring. Each of these reverts on a second call, so this
         // script is only safe to run once per set of freshly deployed
         // contracts.
         memeHook.setFactory(address(factory));
         memeHook.setBuybackVault(buybackVault);
+        memeHook.setStakingVaultDeployer(stakingVaultDeployer);
         buybackVault.setFactory(address(factory));
         locker.setFactory(address(factory));
         factory.setLaunchDeployer(launchDeployer);
         factory.setGraduationExecutor(graduationExecutor);
+
+        // SwapVM-backed features (Ideas/Idea1.md, Ideas/Idea2.md). Both hang
+        // off the official router, so both are skipped when none is given.
+        address swapVMRouter = vm.envOr("SWAP_VM_ROUTER", address(0));
+        if (swapVMRouter != address(0)) {
+            commitmentRegistry = new WeirV2CommitmentRegistry(address(factory), ISwapVM(swapVMRouter));
+            console2.log("WeirV2CommitmentRegistry:", address(commitmentRegistry));
+            factory.setCommitmentRegistry(commitmentRegistry);
+            memeHook.setCompoundRouter(swapVMRouter, ISwapVM(swapVMRouter).WETH());
+        }
 
         vm.stopBroadcast();
     }

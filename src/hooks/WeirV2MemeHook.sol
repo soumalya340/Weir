@@ -24,6 +24,7 @@ import {BaseHook} from "@uniswap/v4-hooks-public/src/base/BaseHook.sol";
 
 import {WeirV2BuybackVault} from "../WeirV2BuybackVault.sol";
 import {WeirV2StakingReward} from "../WeirV2StakingReward.sol";
+import {WeirV2StakingVaultDeployer} from "../WeirV2StakingVaultDeployer.sol";
 import {FeePolicySnapshot, IWeirV2FeeEscrow, IWeirV2FeePolicy} from "../interfaces/ILaunchpadV2.sol";
 import {ISwapVM} from "../interfaces/ISwapVM.sol";
 
@@ -105,6 +106,8 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     error StakingVaultMismatch();
     error FutarchyProposalMismatch();
     error StakingVaultNotSet();
+    error StakingVaultDeployerNotSet();
+    error StakingVaultDeployerMismatch();
 
     event FactorySet(address factory);
     event PoolRegistered(PoolId indexed poolId, address memecoin, address quoteToken, address creator);
@@ -141,6 +144,7 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     event BuybackEnabledUpdated(PoolId indexed poolId, bool enabled);
     event CompoundRouterUpdated(address swapVM, address weth);
     event StakingVaultCompoundingConfigured(PoolId indexed poolId, address vault);
+    event StakingVaultDeployerSet(address deployer);
 
     IWeirV2FeeEscrow public immutable feeEscrow;
 
@@ -168,6 +172,9 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     // for vaults created afterwards; a vault already wired keeps its router.
     address public swapVM;
     address public weth;
+    // Deploys each pool's staking vault so this hook does not carry the
+    // vault's creation code itself (EIP-170). Set once, after both exist.
+    WeirV2StakingVaultDeployer public stakingVaultDeployer;
 
     mapping(PoolId => LaunchInfo) public launches;
     mapping(PoolId => PoolKey) private _poolKeys;
@@ -296,6 +303,19 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
         if (bps > MAX_STAKER_FEE_SHARE_BPS) revert InvalidBps();
         stakerFeeShareBps = bps;
         emit StakerFeeShareUpdated(bps);
+    }
+
+    /**
+     * @notice One-time wiring of the staking vault deployer, set after both
+     * are deployed since the deployer's constructor needs this hook's
+     * already-known address. Required before any pool can be registered.
+     */
+    function setStakingVaultDeployer(WeirV2StakingVaultDeployer deployer) external onlyOwner {
+        if (address(stakingVaultDeployer) != address(0)) revert AlreadySet();
+        if (address(deployer) == address(0)) revert ZeroAddress();
+        if (deployer.hook() != address(this)) revert StakingVaultDeployerMismatch();
+        stakingVaultDeployer = deployer;
+        emit StakingVaultDeployerSet(address(deployer));
     }
 
     /**
@@ -483,8 +503,12 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
 
         // Deploy and wire the per-pool staking vault so stakerFeeShareBps is
         // reachable. Without this, the default 40% staker cut silently folded
-        // back into the creator bucket on every sweep (AUDIT.md #2).
-        WeirV2StakingReward vault = new WeirV2StakingReward(address(this), IERC20(memecoin), quoteToken, feeEscrow);
+        // back into the creator bucket on every sweep (AUDIT.md #2). Deployed
+        // through the helper so the vault's creation code lives there, not
+        // in this hook's own bytecode.
+        WeirV2StakingVaultDeployer deployer = stakingVaultDeployer;
+        if (address(deployer) == address(0)) revert StakingVaultDeployerNotSet();
+        WeirV2StakingReward vault = deployer.deployVault(IERC20(memecoin), quoteToken, feeEscrow);
         stakingVaults[poolId] = vault;
         emit StakingVaultRegistered(poolId, address(vault));
         // Auto-compound is only reachable once a router is known; a pool

@@ -1120,6 +1120,9 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
         if (memeHook.factory() != address(this) || address(memeHook.buybackVault()) != address(buybackVault)) {
             revert LaunchDependenciesNotWired();
         }
+        // registerPool deploys the pool's staking vault through this helper;
+        // without it every graduation would revert at pool creation.
+        if (address(memeHook.stakingVaultDeployer()) == address(0)) revert LaunchDependenciesNotWired();
         if (buybackVault.factory() != address(this) || locker.factory() != address(this)) {
             revert LaunchDependenciesNotWired();
         }

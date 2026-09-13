@@ -1,0 +1,1 @@
+{"version":1,"failures":[{"contract":"test/AuditPoC.t.sol:AuditPoC","test":"test_fix_creatorTransferCancelsPendingOverride"},{"contract":"test/AuditPoC.t.sol:AuditPoC","test":"test_fix_registerPoolDeploysStakingVault"},{"contract":"test/AuditPoC.t.sol:AuditPoC","test":"test_poc_fakeVaultMatchingProposalCannotUnlockViaFactory"}]}
