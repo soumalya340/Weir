@@ -1,116 +1,125 @@
-# Idea 2: Zero-Custody Pre-Launch Virtual Commitment via SwapVM
+# Idea 2: Zero-custody virtual commitments → LimitSwap after graduation
 
 > [!NOTE]
-> **Phase: PRE-GRADUATION (Settles at Graduation Transition)**  
-> This mechanism operates **before and during** the bonding curve phase. Community backers make zero-custody pledges prior to public launch, tokens are reserved during curve trading, and settlement executes atomically at the exact moment of DEX graduation.
+> **Two phases**  
+> - **Before / during bonding:** virtual reserves (Aqua / signed commitments). USDC stays with backers; a reserved token tranche is fenced off from the public curve.  
+> - **At / after graduation:** settlement and follow-on fills use stock SwapVM **`LimitSwap`** (and related existing instructions) against real post-grad liquidity.
+
+> [!IMPORTANT]
+> **No SwapVM opcode changes required.**  
+> Graduation checks and reserve fencing live in Weir (bonding curve / hook / graduation executor). SwapVM is used with official contracts and existing instructions only. Redeploying a modified SwapVM is optional and not part of this plan.
 
 ## Sources
-- `/Users/soumalyapaul/Documents/EVM/Eth_Global_Discussions/Weir/src/WeirV2BondingCurve.sol` — Constant-product bonding curve implementation
-- `/Users/soumalyapaul/Documents/EVM/Eth_Global_Discussions/Weir/src/hooks/` & `/Users/soumalyapaul/Documents/EVM/Eth_Global_Discussions/deps/ponsfamily/contractsV2/` — Uniswap v4 hook-based launchpad architecture
-- `/Users/soumalyapaul/Documents/EVM/Eth_Global_Discussions/Weir/deps/swap-vm` — 1inch SwapVM modular execution engine
-- `/Users/soumalyapaul/Documents/EVM/Eth_Global_Discussions/scope_of_work/1inch.md` & `scope_of_work/Uniswap.md` — Scope and requirements
+- `src/WeirV2BondingCurve.sol` — bonding curve
+- `src/hooks/WeirV2MemeHook.sol` — Uniswap v4 launchpad hook
+- `deps/swap-vm` — official 1inch SwapVM
+- `scope_of_work/1inch.md` & `scope_of_work/Uniswap.md`
 
 ---
 
-## Section 1: Why and What?
+## Why and what
 
-### 1. Technical Description
-**Zero-Custody Pre-Launch Virtual Commitment** is a bonding curve presale mechanism governed by a custom 1inch **SwapVM opcode** paired with a **Uniswap v4 launchpad hook**.
+### Technical
 
-In conventional launchpads (e.g., Pump.fun or standard presales), early backers must deposit upfront quote capital (USDC/ETH) into an escrow contract before launch. This exposes users to counterparty risk, rug pulls, locked capital, and high gas overheads for manual refund claims if the launch fails to graduate.
+Classic presales force early backers to send USDC into an escrow. If the launch fails or rugs, money is stuck or refunds cost gas.
 
-Under this architecture:
-1. **Zero-Custody Commitments (Pre-Graduation):** Early community backers sign conditional EIP-712 SwapVM maker orders. Utilizing **Aqua’s balance model**, committed USDC **never leaves users' wallets** during the pre-launch and bonding curve phases.
-2. **Supply Partitioning:** At launch initialization, the total token supply (e.g., 1 Billion tokens) is mathematically partitioned:
-   - **Reserved Allocation (10% / 100M tokens):** Quarantined exclusively for the committed signers at a fixed ground-floor seed price ($1,000 USDC total = $0.00001 per token). The hook blocks public swaps from accessing or depleting this tranche.
-   - **Public Curve Allocation (90% / 900M tokens):** Injected into the active bonding curve pool for open market trading, starting the curve with 10% effective progress already accomplished.
-3. **Conditional Settlement (At Graduation):**
-   - **Graduation Trigger:** The moment the public curve sells out its 900M tokens and reaches the graduation goal, the graduation executor calls `SwapVM.swap()` to atomically pull the $1,000 USDC from the committers' wallets and distribute the 100M tokens.
-   - **Failure / Timeout Protection:** If the bonding curve fails to graduate before a set deadline, the conditional commitment expires worthless. No USDC is ever pulled, and zero gas is spent on refunds.
+This design:
 
----
+1. **Pre-grad virtual reserves**  
+   Backers sign conditional maker commitments (EIP-712 / Aqua balance mode). Committed USDC **does not leave** their wallets while the curve is live.  
+   Supply is split, e.g. 10% reserved for committers, 90% on the public bonding curve. Public buys cannot eat the reserved tranche (enforced by Weir, not by a new opcode).
 
-### 2. Simple (Layman) Description — Alice & The 9 Believers
-Imagine **Alice** and **8 of her friends** discover a promising new meme/community project before it launches to the public. They want to be the earliest backers.
+2. **Graduation gate (Weir)**  
+   When the public curve hits the graduation threshold, Weir’s graduation path decides settlement is allowed. If the launch times out without graduating, commitments expire and **nothing is pulled**.
 
-#### The Old Launchpad Way (High Risk & Stress):
-- Alice and her friends have to send $1,000 USDC into a random creator's presale contract.
-- If the creator rugs, or if the bonding curve flops and never graduates, Alice's money is trapped or she has to scramble and pay high gas fees to claim refunds.
+3. **Post-grad LimitSwap (official SwapVM)**  
+   Settlement (and any later fills involving that reserved allocation / related quotes) runs through stock programs such as **`LimitSwap`**, optionally with min-rate / TWAP-style protection. No custom `PreLaunchCommitReserve` opcode.
 
-#### The SwapVM Virtual Commit Way (Zero Risk & Ground-Floor Entry):
-1. **The Handshake:** Alice and her 8 friends sign a digital pledge using a custom SwapVM rule: *"I pledge $111.11 USDC for 11,111,111 tokens, ONLY IF the project successfully sells out and graduates."*
-2. **Money Stays at Home:** Crucially, **Alice’s $111.11 USDC never leaves her personal wallet**. She still holds her money.
-3. **The Protected VIP Table:** The launchpad creates 1 Billion tokens. It locks 100 Million tokens (10%) behind velvet ropes for Alice and her friends. Public buyers can only trade the remaining 900 Million tokens (90%) on the bonding curve.
-4. **The Big Day (Graduation):**
-   - The public goes crazy trading the 900M tokens, pushing the bonding curve price up from $0.00001 to $0.00010.
-   - The curve hits 100% and **graduates**!
-   - The contract triggers the SwapVM rule: Alice's $111.11 USDC is automatically pulled from her wallet, and her 11.1M tokens land in her wallet at the original ground-floor $0.00001 price (she's already in 10x profit!).
-   - If the project **flopped** and never graduated? The pledge simply cancels. Alice's money was in her wallet the entire time—**$0 lost, 0 hassle**.
+### Layman — Alice and friends
 
----
+Alice and eight friends want ground-floor access before the public curve.
+
+**Old way:** send $1,000 into a presale contract and hope.
+
+**This way:**
+
+1. They pledge ~$111 each for a fixed token allotment, only if the launch graduates.
+2. Money stays in their wallets (virtual / Aqua-backed commitment).
+3. 100M tokens sit behind a rope for them; the public trades the other 900M on the curve.
+4. If the curve graduates, Weir triggers settlement; SwapVM **LimitSwap** (existing) pulls USDC and delivers tokens.  
+   If it flops, the pledge dies quietly. No pull, no refund gas.
 
 ### One-liner
-**One-liner:** A zero-custody bonding curve presale mechanism where backers commit funds that remain in their wallets until the curve successfully graduates, locking in ground-floor allocations with zero rug or refund risk.
+
+Zero-custody pledges as virtual reserves during bonding; at graduation, settle with official SwapVM LimitSwap. No custom opcodes.
 
 ---
 
-## Tokenomics & Mathematical Model
+## Tokenomics sketch
 
-| Parameter | Value | Notes |
-|---|---|---|
-| **Total Token Supply** | **1,000,000,000 (1B)** | Fixed max supply created at genesis |
-| **Committed VIP Tranche (10%)** | **100,000,000 (100M)** | Reserved for 9 friends; completely untouchable by public |
-| **Public Bonding Curve (90%)** | **900,000,000 (900M)** | Active bonding curve pool (`WeirV2BondingCurve`) |
-| **Total USDC Committed** | **$1,000 USDC** | Split across 9 friends (~$111.11 each) |
-| **Ground-Floor Seed Price** | **$0.00001 / token** | $\frac{1,000\text{ USDC}}{100,000,000\text{ tokens}}$ ($100,000\text{ tokens / 1 USDC}$) |
-| **Starting Curve Progress** | **10%** | Launches with initial momentum already accounted for |
+| Parameter | Example | Notes |
+|-----------|---------|--------|
+| Total supply | 1,000,000,000 | Fixed at launch |
+| Reserved for committers | 100,000,000 (10%) | Untouchable by public curve |
+| Public bonding curve | 900,000,000 (90%) | `WeirV2BondingCurve` |
+| Total USDC committed | $1,000 | Split across committers |
+| Seed price | $0.00001 / token | $1,000 / 100M |
+
+Numbers are illustrative; real launches set their own split and threshold.
 
 ---
 
-## Architecture & Lifecycle Workflow
+## Lifecycle
 
 ```
-   [ Alice & 8 Friends ] (USDC stays in their own wallets via Aqua!)
-            │
-            ▼ (Sign EIP-712 orders with PreLaunchCommit opcode)
-┌────────────────────────────────────────────────────────────────────────┐
-│                   PRE-GRADUATION LAUNCHPAD HOOK                        │
-│                                                                        │
-│   [ 100M Reserved Tranche (10%) ]    [ 900M Public Bonding Curve (90%) ]
-│    Locked for 9 Friends               Open for public trading          │
-│    (Public cannot touch!)             Price climbs as buyers trade     │
-│                                                   │                    │
-│                                                   ▼                    │
-│                                            [ afterSwap() ]             │
-│                                       Did curve hit graduation goal?   │
-└───────────────────────────────────────────────────┬────────────────────┘
-                                                    │
-                   ┌────────────────────────────────┴──────────────────┐
-                   │                                                   │
-                   ▼ (YES: Curve Graduated)                            ▼ (NO: Timeout / Flop)
-     [ Call SwapVM.swap() ]                             [ Commitment Expired ]
-     - Pull $1,000 USDC from friends' wallets            - $0 pulled from friends
-     - Release 100M tokens to friends                   - No gas for refunds
-     - Migrate pool liquidity to Uniswap v4              - Tokens recycled / closed
+[ Alice & friends ]  USDC stays in wallets (Aqua / signatures)
+         │
+         ▼  sign conditional commitments
+┌────────────────────────────────────────────────────────────┐
+│  PRE / DURING BONDING (Weir)                               │
+│  [ Reserved tranche ]     [ Public bonding curve ]         │
+│   virtual reserves         open trading                    │
+│   (public cannot touch)    price moves with buys           │
+│                                      │                     │
+│                                      ▼                     │
+│                              graduation check              │
+└──────────────────────┬──────────────────┬──────────────────┘
+                       │                  │
+          graduated ───┘                  └── timeout / flop
+                       │                       │
+                       ▼                       ▼
+         [ Official SwapVM LimitSwap ]   [ commitment expires ]
+         pull USDC, deliver tokens        $0 pulled, no refunds
+         (existing instructions only)
+                       │
+                       ▼
+              Uniswap v4 pool live
 ```
 
 ---
 
-## Custom SwapVM Opcode Implementation
+## SwapVM usage (stock only)
 
-To implement this on SwapVM, we introduce a custom opcode:
+| Phase | What runs where |
+|--------|------------------|
+| Pre-grad | Weir fences reserves; Aqua / EIP-712 holds the pledge |
+| Graduation allowed? | Weir (`readyToGraduate` / executor), not a custom opcode |
+| Settlement | Official SwapVM: `LimitSwap` (+ optional min-rate / TWAP) |
+| After pool is live | Same LimitSwap-style programs for related fills if needed |
 
-### Opcode Name: `PreLaunchCommitReserve` (Bank `0x90` or `0x20`)
-* **Bytecode Arguments:** `[address bondingCurve, uint256 minimumGraduationThreshold, uint32 deadline]`
-* **Execution Logic:**
-  1. **Status Verification:** The opcode checks `IBondingCurve(bondingCurve).isGraduated()`. If `false`, the swap reverts, preventing early execution or taker sniping before graduation.
-  2. **Reserve Quota Validation:** Verifies that the order fills exclusively from the 100M reserved supply partition, preserving the 900M bonding curve invariant.
-  3. **Zero-Loss Timeout:** If `block.timestamp > deadline` and graduation is not reached, the opcode halts permanently without touching the maker's wallet balance.
+### What you deploy
+
+| Piece | Deploy? |
+|--------|---------|
+| Official SwapVM / Aqua | No — use 1inch deployments (local fork OK for demo) |
+| Custom SwapVM opcodes | No |
+| Weir curve, hook, reserved tranche, graduation trigger | Yes |
 
 ---
 
-## Why This Wins Hackathon Judging
+## Why this still fits the 1inch + Uniswap tracks
 
-1. **Directly fulfills 1inch Track Requirements:** Uses official SwapVM contracts, modifies SwapVM opcodes, and demonstrates real onchain token settlements via local forks.
-2. **Cross-Track Eligibility:** Qualifies for **both** the **1inch ($5,000 Aqua/SwapVM track)** and the **Uniswap ($3,000 v4 Hook track)**.
-3. **Solves Real Web3 Pain Points:** Eliminates presale smart contract custody risk, provides bot-proof ground-floor access for communities, and guarantees automated execution upon pool graduation.
+- **1inch / Aqua:** real conditional maker commitments and onchain settlement via official SwapVM (fork demo is enough). Using SwapVM scores; modifying opcodes is optional and we are skipping it on purpose.
+- **Uniswap:** reserved tranche + graduation still live in the v4 launchpad hook / curve path.
+
+Custom opcodes remain a later optional boost, not a dependency for v1.
