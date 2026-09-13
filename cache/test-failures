@@ -1,1 +1,1 @@
-{"version":1,"failures":[{"contract":"test/SwapVMOrderLib.t.sol:SwapVMOrderLibTest","test":"test_buildOrder_revertsTokensNotSorted"}]}
+{"version":1,"failures":[{"contract":"test/WeirV2FutarchyCompound.t.sol:WeirV2FutarchyCompoundTest","test":"test_deployerVault_takesProposal"}]}

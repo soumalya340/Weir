@@ -9,9 +9,11 @@ import {ISwapVM} from "../../src/interfaces/ISwapVM.sol";
 /// fixture). Records every (order, amount, takerData) call and fills per a
 /// per-order plan: Succeed pulls `amountIn` of tokenIn from the taker and
 /// pushes `amountOut` of tokenOut from the maker; Revert reverts;
-/// Underdeliver pulls tokenIn but delivers nothing, which the registry's
-/// delta check treats as a defection. Native fills (msg.value) refund any
-/// unspent value to the caller, like the real router.
+/// Underdeliver moves nothing but reports success, which counterparty delta
+/// checks treat as a failed fill (a taker-side token pull here would strand
+/// the registry's burn accounting, so the mode is pure short delivery).
+/// Native fills (msg.value) refund any unspent value to the caller, like
+/// the real router.
 contract MockSwapVM is ISwapVM {
     enum Mode {
         Succeed,
@@ -100,6 +102,10 @@ contract MockSwapVM is ISwapVM {
         amountIn = plan.amountIn != 0 ? plan.amountIn : amount;
         require(amountIn <= amount, "MockSwapVM: amountIn exceeds amount");
 
+        if (plan.mode == Mode.Underdeliver) {
+            return (amountIn, 0, orderHash);
+        }
+
         if (msg.value != 0) {
             require(amountIn <= msg.value, "MockSwapVM: amountIn exceeds value");
             if (plan.tokenIn != address(0)) {
@@ -114,9 +120,6 @@ contract MockSwapVM is ISwapVM {
             IERC20(plan.tokenIn).transferFrom(msg.sender, order.maker, amountIn);
         }
 
-        if (plan.mode == Mode.Underdeliver) {
-            return (amountIn, 0, orderHash);
-        }
         amountOut = plan.amountOut;
         if (amountOut != 0) {
             IERC20(plan.tokenOut).transferFrom(order.maker, msg.sender, amountOut);

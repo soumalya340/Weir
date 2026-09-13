@@ -32,11 +32,35 @@ contract MockBurnableToken is ERC20, ERC20Burnable {
     }
 }
 
-/// @dev Fee-on-transfer quote token: takes exactly 1 wei extra from the
-/// sender on every transfer/transferFrom (burned), delivering the nominal
-/// amount. Used to prove delta-based accounting (bond receipt, overspend).
+/// @dev Fee-on-transfer quote token: the recipient gets 1 wei less than the
+/// nominal amount (burned). Used to prove delta-based accounting rejects
+/// short delivery (bond receipt, TestCase 3.2.12).
 contract MockTaxQuote is ERC20 {
     constructor() ERC20("Tax Quote", "TAXQ") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        if (from != address(0) && to != address(0) && value != 0) {
+            super._update(from, to, value - 1);
+            _burn(from, 1);
+        } else {
+            super._update(from, to, value);
+        }
+    }
+}
+
+/// @dev Sender-tax quote token: the recipient gets the nominal amount but
+/// the sender loses 1 wei extra (burned), so balance deltas exceed the
+/// approved pull. Used for the CompoundOverspent guard (TestCase 6.13).
+contract MockSenderTaxQuote is ERC20 {
+    constructor() ERC20("Sender Tax Quote", "STAXQ") {}
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);

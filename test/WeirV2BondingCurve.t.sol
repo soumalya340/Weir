@@ -186,4 +186,100 @@ contract WeirV2BondingCurveTest is Test {
         vm.warp(opensAt + 100);
         assertEq(curve.currentSnipeTaxBps(buyer), 0);
     }
+
+    /// @dev Curve opened immediately with a 10% tranche, bought out in one
+    /// oversized trade (clamped + refunded, auto-graduation fails benignly
+    /// because this test contract exposes no graduate()).
+    function _readyCurve(bool withTranche)
+        internal
+        returns (WeirV2BondingCurve curve, WeirV2LauncherToken token, uint256 committed)
+    {
+        (curve, token) = _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
+        committed = withTranche ? SUPPLY / 10 : 0;
+        curve.initialize(address(token), committed, 0);
+        _buy(curve, THRESHOLD * 10);
+        assertTrue(curve.readyToGraduate());
+    }
+
+    // 2.8: buying out the public partition never touches the tranche.
+    function test_trancheUntouchableOnGraduation() public {
+        (WeirV2BondingCurve curve, WeirV2LauncherToken token, uint256 committed) = _readyCurve(true);
+
+        assertEq(curve.sellableTokens(), 0);
+        assertEq(curve.committedTokens(), committed);
+        (, uint256 tokenReserve) = curve.getReserves();
+        assertEq(tokenReserve, curve.reservedTokens());
+        assertEq(token.balanceOf(address(curve)), curve.reservedTokens() + committed);
+    }
+
+    // 2.9: graduation lands on the same quote reserve with or without a tranche.
+    function test_graduationPriceUnchangedByTranche() public {
+        (WeirV2BondingCurve plain,,) = _readyCurve(false);
+        (WeirV2BondingCurve withTranche,,) = _readyCurve(true);
+
+        uint256 reservePlain = plain.realQuoteReserve();
+        uint256 reserveTranched = withTranche.realQuoteReserve();
+        assertApproxEqAbs(reservePlain, reserveTranched, 1e6);
+        assertApproxEqRel(reservePlain, THRESHOLD, 0.001e18);
+        assertApproxEqRel(reserveTranched, THRESHOLD, 0.001e18);
+    }
+
+    // 2.10: releaseCommittedTokens access control.
+    function test_releaseCommittedTokens_access() public {
+        (WeirV2BondingCurve curve,,) = _readyCurve(true);
+
+        vm.prank(stranger);
+        vm.expectRevert(WeirV2BondingCurve.NotFactory.selector);
+        curve.releaseCommittedTokens(stranger);
+
+        vm.expectRevert(WeirV2BondingCurve.ZeroAddress.selector);
+        curve.releaseCommittedTokens(address(0));
+
+        // Not ready on a fresh curve.
+        (WeirV2BondingCurve fresh, WeirV2LauncherToken freshToken) =
+            _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
+        fresh.initialize(address(freshToken), SUPPLY / 10, 0);
+        vm.expectRevert(WeirV2BondingCurve.NotReadyToGraduate.selector);
+        fresh.releaseCommittedTokens(stranger);
+
+        // Graduated curves refuse too.
+        curve.graduate(address(this));
+        vm.expectRevert(WeirV2BondingCurve.AlreadyGraduated.selector);
+        curve.releaseCommittedTokens(stranger);
+    }
+
+    // 2.11: release effect — exact transfer, zeroed field, event, idempotent.
+    function test_releaseCommittedTokens_effect() public {
+        (WeirV2BondingCurve curve, WeirV2LauncherToken token, uint256 committed) = _readyCurve(true);
+
+        vm.expectEmit(true, false, false, true);
+        emit CommittedTokensReleased(stranger, committed);
+        uint256 released = curve.releaseCommittedTokens(stranger);
+
+        assertEq(released, committed);
+        assertEq(token.balanceOf(stranger), committed);
+        assertEq(curve.committedTokens(), 0);
+
+        uint256 releasedAgain = curve.releaseCommittedTokens(stranger);
+        assertEq(releasedAgain, 0);
+        assertEq(token.balanceOf(stranger), committed);
+    }
+
+    // 2.12: the internal fee buyback is bounded by sellableTokens and can
+    // never lock tranche tokens.
+    function test_internalBuybackNeverEatsTranche() public {
+        uint256 committed = SUPPLY / 10;
+        (WeirV2BondingCurve curve, WeirV2LauncherToken token) =
+            _deploy(SUPPLY, PHANTOM, THRESHOLD, 100, 0, 0, true);
+        curve.initialize(address(token), committed, 0);
+
+        _buy(curve, 1000e6);
+        _buy(curve, 1000e6);
+        assertGt(curve.quoteFeeBalance(), 0);
+
+        curve.sweepFees(1);
+        assertGt(vault.totalLocked(), 0);
+        assertEq(curve.committedTokens(), committed);
+        assertGe(curve.trackedTokens(), curve.reservedTokens());
+    }
 }
