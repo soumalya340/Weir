@@ -26,11 +26,10 @@ struct LaunchDeployment {
     bool buybackEnabled;
     uint256 graduationThreshold;
     uint256 supply;
-    // Carried through from TokenParams.salt. Not yet consumed here: curve and
-    // token deployment below still use plain `new`, not CREATE2, so
-    // deterministic/vanity addresses and predictLaunchAddresses remain
-    // unimplemented.
+    // CREATE2 salt namespaced per originalDeployer inside deployLaunch.
     bytes32 salt;
+    uint256 snipeTaxStartBps;
+    uint256 snipeTaxSeconds;
     string name;
     string symbol;
     string logo;
@@ -77,10 +76,11 @@ contract WeirV2LaunchDeployer {
     }
 
     /**
-     * @notice Deploys a fresh curve/token pair and returns both addresses.
-     * Both contracts are told `factory` (not this deployer) is their
-     * privileged caller. Wiring the curve to its token via `initialize()` is
-     * left to the factory itself, since that call is `onlyFactory`-gated.
+     * @notice Deploys a fresh curve/token pair via CREATE2 and returns both
+     * addresses. Salts are namespaced by `originalDeployer` so uniqueness is
+     * per initiating account. Both contracts are told `factory` (not this
+     * deployer) is their privileged caller. Wiring the curve to its token via
+     * `initialize()` is left to the factory itself.
      */
     function deployLaunch(LaunchDeployment calldata params)
         external
@@ -89,8 +89,9 @@ contract WeirV2LaunchDeployer {
     {
         _requireMetadataWithinLimits(params);
 
+        bytes32 curveSalt = _curveSalt(params.originalDeployer, params.salt);
         curve = address(
-            new WeirV2BondingCurve(
+            new WeirV2BondingCurve{salt: curveSalt}(
                 params.pairToken,
                 params.creatorFeeRecipient,
                 factory,
@@ -102,11 +103,15 @@ contract WeirV2LaunchDeployer {
                 params.curveFeeBps,
                 params.creatorTaxBps,
                 params.buybackEnabled,
-                params.graduationThreshold
+                params.graduationThreshold,
+                params.snipeTaxStartBps,
+                params.snipeTaxSeconds
             )
         );
+
+        bytes32 tokenSalt = _tokenSalt(params.originalDeployer, params.salt);
         token = address(
-            new WeirV2LauncherToken(
+            new WeirV2LauncherToken{salt: tokenSalt}(
                 params.name,
                 params.symbol,
                 params.logo,
@@ -117,6 +122,52 @@ contract WeirV2LaunchDeployer {
                 factory,
                 params.supply
             )
+        );
+    }
+
+    /**
+     * @notice Predicts the CREATE2 addresses `deployLaunch` will produce for
+     * the given parameters, without deploying. Reusing an already-consumed
+     * salt on identical terms will revert at deploy time.
+     */
+    function predictLaunchAddresses(LaunchDeployment calldata params)
+        external
+        view
+        returns (address token, address curve)
+    {
+        bytes32 curveSalt = _curveSalt(params.originalDeployer, params.salt);
+        bytes memory curveInit = abi.encode(
+            params.pairToken,
+            params.creatorFeeRecipient,
+            factory,
+            params.feePolicy,
+            params.policy,
+            params.feeEscrow,
+            params.buybackVault,
+            params.phantomQuote,
+            params.curveFeeBps,
+            params.creatorTaxBps,
+            params.buybackEnabled,
+            params.graduationThreshold,
+            params.snipeTaxStartBps,
+            params.snipeTaxSeconds
+        );
+        curve = _computeCreate2Address(curveSalt, keccak256(abi.encodePacked(type(WeirV2BondingCurve).creationCode, curveInit)));
+
+        bytes32 tokenSalt = _tokenSalt(params.originalDeployer, params.salt);
+        bytes memory tokenInit = abi.encode(
+            params.name,
+            params.symbol,
+            params.logo,
+            params.description,
+            params.socials,
+            params.originalDeployer,
+            curve,
+            factory,
+            params.supply
+        );
+        token = _computeCreate2Address(
+            tokenSalt, keccak256(abi.encodePacked(type(WeirV2LauncherToken).creationCode, tokenInit))
         );
     }
 
@@ -142,5 +193,17 @@ contract WeirV2LaunchDeployer {
         ) {
             revert MetadataTooLong();
         }
+    }
+
+    function _curveSalt(address originalDeployer, bytes32 salt) private pure returns (bytes32) {
+        return keccak256(abi.encode(originalDeployer, salt, "curve"));
+    }
+
+    function _tokenSalt(address originalDeployer, bytes32 salt) private pure returns (bytes32) {
+        return keccak256(abi.encode(originalDeployer, salt, "token"));
+    }
+
+    function _computeCreate2Address(bytes32 salt, bytes32 initCodeHash) private view returns (address) {
+        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash)))));
     }
 }

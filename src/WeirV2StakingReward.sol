@@ -165,12 +165,15 @@ contract WeirV2StakingReward is ReentrancyGuard {
 
     /**
      * @notice Wires the one futarchy proposal contract allowed to unlock
-     * early exit for this vault. Permissionless and settable at most once:
-     * anyone can point a fresh WeirV2FutarchyProposal at an unwired vault to
-     * kick off a decision market on it, but a vault already deciding (or
-     * already unlocked) cannot be redirected to a second, competing proposal.
+     * early exit for this vault. Callable only by the governing hook (which
+     * the factory drives after validating the proposal is bound to this
+     * vault). Settable at most once: a vault already deciding (or already
+     * unlocked) cannot be redirected to a second, competing proposal.
+     * @dev Previously permissionless, which let any EOA seize the slot and
+     * either unlock early exit without a decision market or permanently
+     * grief futarchy. Gating through the hook closes both attacks.
      */
-    function setFutarchyProposal(address proposal) external {
+    function setFutarchyProposal(address proposal) external onlyHook {
         if (proposal == address(0)) revert ZeroAddress();
         if (futarchyProposal != address(0)) revert FutarchyProposalAlreadySet();
         futarchyProposal = proposal;

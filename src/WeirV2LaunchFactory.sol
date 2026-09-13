@@ -36,6 +36,10 @@ import {
     IWeirV2LaunchFactory
 } from "./interfaces/ILaunchpadV2.sol";
 
+interface IWeirV2FutarchyProposalVault {
+    function vault() external view returns (address);
+}
+
 /**
  * @title WeirV2LaunchFactory
  * @notice Deploys a bonding curve and its launch token for every weir v2
@@ -829,6 +833,8 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
                 graduationThreshold: graduationThreshold,
                 supply: config.supply,
                 salt: params.salt,
+                snipeTaxStartBps: snipeTaxStartBps,
+                snipeTaxSeconds: snipeTaxSeconds,
                 name: params.name,
                 symbol: params.symbol,
                 logo: params.logo,
@@ -881,15 +887,15 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
      * fees for `token` to a new address, whether the launch is still
      * trading on its bonding curve or has already graduated into its
      * Uniswap V4 pool.
-     * @dev Does not clear a pending protocol-owner override. If one is
-     * outstanding, it still executes on schedule and supersedes the address
-     * set here. See `setCreatorFeeRecipient`.
+     * @dev Cancels any pending protocol-owner override so the timelock is a
+     * genuine notice-and-veto window rather than a unilateral seize path.
      */
     function transferCreatorFeeRecipient(address token, address newRecipient) external {
         LaunchedToken storage launch = _launchedTokens[token];
         if (!launch.exists) revert TokenNotFound();
         if (msg.sender != launch.creatorFeeRecipient) revert NotCreatorFeeRecipient();
 
+        _cancelPendingCreatorFeeRecipientChange(token);
         _setCreatorFeeRecipient(token, launch, newRecipient);
     }
 
@@ -930,18 +936,11 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
      * notice instead of applying instantly. A new proposal for the same
      * token replaces any earlier pending one and resets the clock.
      *
-     * @dev A matured proposal takes precedence over any creator transfer made
-     * while it was pending. `transferCreatorFeeRecipient` deliberately does
-     * not cancel it, so the timelock is a notice period rather than a window
-     * in which the creator can veto by moving the recipient themselves. The
-     * override is therefore a standing protocol power over creator fee
-     * routing, not a narrowly scoped lost-key recovery, and it is documented
-     * as such rather than left to whichever call lands last.
-     *
-     * The collision is observable without extra state: this function emits
-     * the recipient as it stood at proposal time, and `_setCreatorFeeRecipient`
-     * emits the recipient it actually replaced. A creator transfer landing in
-     * between shows up as a mismatch between the two.
+     * @dev Creators can veto a pending override by calling
+     * `transferCreatorFeeRecipient`, which cancels the proposal. The owner
+     * may propose again afterward (restarting the timelock). Lost-key
+     * recovery therefore still works when the creator cannot act; it does
+     * not let the owner silently override an active creator who notices.
      */
     function setCreatorFeeRecipient(address token, address newRecipient) external onlyOwner {
         LaunchedToken storage launch = _launchedTokens[token];
@@ -978,6 +977,26 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
      */
     function cancelCreatorFeeRecipientChange(address token) external onlyOwner {
         if (!_cancelPendingCreatorFeeRecipientChange(token)) revert NoPendingChange();
+    }
+
+    /**
+     * @notice Wires a deployed WeirV2FutarchyProposal onto the staking vault
+     * for a graduated launch. Permissionless provided the proposal's
+     * `vault()` matches the pool's registered staking vault. The vault itself
+     * only accepts the call via the hook (AUDIT.md #1).
+     */
+    function registerFutarchyProposal(address token, address proposal) external {
+        LaunchedToken storage launch = _launchedTokens[token];
+        if (!launch.exists) revert TokenNotFound();
+        if (launch.phase != GraduationPhase.PoolCreated) revert WrongGraduationPhase();
+        if (proposal == address(0)) revert ZeroAddress();
+
+        PoolId poolId = _poolIdFor(token, launch);
+        address vault = address(memeHook.stakingVaults(poolId));
+        if (vault == address(0)) revert TokenNotFound();
+        if (IWeirV2FutarchyProposalVault(proposal).vault() != vault) revert InvalidTokenParams();
+
+        memeHook.registerFutarchyProposal(poolId, proposal);
     }
 
     /**

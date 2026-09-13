@@ -141,11 +141,14 @@ contract WeirV2BondingCurve is ReentrancyGuard {
     // and handed to the graduated pool intact. Everything above it is the
     // sellable allocation, and graduation is exactly its exhaustion.
     uint256 public reservedTokens;
-    // Addresses the factory has declared exempt from the (not yet
-    // implemented) launch-window snipe tax. Recorded here so the factory's
-    // exemption lists have somewhere to land; buy()/sell() do not yet charge
-    // any snipe tax or consult this mapping.
+    // Addresses the factory has declared exempt from the launch-window snipe
+    // tax (creator and any creator-supplied allowlist).
     mapping(address => bool) public snipeTaxExempt;
+    // Decaying anti-snipe tax configured at launch. Linearly falls from
+    // `snipeTaxStartBps` to 0 over `snipeTaxSeconds` after `launchedAt`.
+    uint256 public immutable snipeTaxStartBps;
+    uint256 public immutable snipeTaxSeconds;
+    uint256 public launchedAt;
 
     modifier onlyFactory() {
         if (msg.sender != factory) revert NotFactory();
@@ -170,6 +173,8 @@ contract WeirV2BondingCurve is ReentrancyGuard {
      * @param creatorTaxBps_ Additional creator-chosen trade tax in basis points, layered on top of feeBps_.
      * @param buybackEnabled_ Whether this launch initially routes its configured fee share into buyback-and-lock.
      * @param graduationThreshold_ Real quote reserve required before graduation unlocks.
+     * @param snipeTaxStartBps_ Opening anti-snipe tax in bps (0 disables).
+     * @param snipeTaxSeconds_ Decay window for the anti-snipe tax.
      */
     constructor(
         address pairToken_,
@@ -183,7 +188,9 @@ contract WeirV2BondingCurve is ReentrancyGuard {
         uint256 feeBps_,
         uint256 creatorTaxBps_,
         bool buybackEnabled_,
-        uint256 graduationThreshold_
+        uint256 graduationThreshold_,
+        uint256 snipeTaxStartBps_,
+        uint256 snipeTaxSeconds_
     ) {
         if (deployer_ == address(0) || factory_ == address(0)) revert ZeroAddress();
         if (address(feePolicy_) == address(0) || address(feeEscrow_) == address(0)) revert ZeroAddress();
@@ -220,6 +227,8 @@ contract WeirV2BondingCurve is ReentrancyGuard {
         creatorTaxBps = creatorTaxBps_;
         buybackEnabled = buybackEnabled_;
         graduationThreshold = graduationThreshold_;
+        snipeTaxStartBps = snipeTaxStartBps_;
+        snipeTaxSeconds = snipeTaxSeconds_;
     }
 
     /**
@@ -260,8 +269,23 @@ contract WeirV2BondingCurve is ReentrancyGuard {
         // The allocation the curve actually received, which is the whole
         // supply: the token mints to this curve in its own constructor.
         trackedTokens = IERC20(token_).balanceOf(address(this));
+        launchedAt = block.timestamp;
 
         emit Initialized(token_);
+    }
+
+    /**
+     * @notice Current anti-snipe tax in bps for `account`, decaying linearly
+     * from `snipeTaxStartBps` to 0 across `snipeTaxSeconds` after launch.
+     * Exempt accounts and disabled configs return 0.
+     */
+    function currentSnipeTaxBps(address account) public view returns (uint256) {
+        if (snipeTaxExempt[account] || snipeTaxStartBps == 0 || snipeTaxSeconds == 0 || launchedAt == 0) {
+            return 0;
+        }
+        uint256 elapsed = block.timestamp - launchedAt;
+        if (elapsed >= snipeTaxSeconds) return 0;
+        return (snipeTaxStartBps * (snipeTaxSeconds - elapsed)) / snipeTaxSeconds;
     }
 
     /**
@@ -302,8 +326,6 @@ contract WeirV2BondingCurve is ReentrancyGuard {
 
     /**
      * @notice Records `account` as exempt from the launch-window snipe tax.
-     * @dev Bookkeeping only: buy()/sell() do not yet charge a snipe tax, so
-     * this has no economic effect until that mechanic is implemented.
      */
     function exemptFromSnipeTax(address account) external onlyFactory {
         snipeTaxExempt[account] = true;
@@ -399,9 +421,19 @@ contract WeirV2BondingCurve is ReentrancyGuard {
         uint256 tokenReserveBefore = trackedTokens;
 
         uint256 spent = received;
+        uint256 snipeBps = currentSnipeTaxBps(msg.sender);
+        // Clamp so fee + creator tax + snipe never consumes the whole input.
+        uint256 baseTakeBps = feeBps + creatorTaxBps;
+        if (baseTakeBps + snipeBps >= BASIS_POINTS) {
+            snipeBps = BASIS_POINTS - baseTakeBps - 1;
+        }
+        uint256 takeBps = baseTakeBps + snipeBps;
+
         uint256 fee = (spent * feeBps) / BASIS_POINTS;
         uint256 tax = (spent * creatorTaxBps) / BASIS_POINTS;
-        tokensOut = WeirV2BondingCurveMath.getAmountOut(spent - fee - tax, quoteReserveBefore, tokenReserveBefore, 0);
+        uint256 snipe = (spent * snipeBps) / BASIS_POINTS;
+        tokensOut =
+            WeirV2BondingCurveMath.getAmountOut(spent - fee - tax - snipe, quoteReserveBefore, tokenReserveBefore, 0);
 
         uint256 sellable = tokenReserveBefore > reservedTokens ? tokenReserveBefore - reservedTokens : 0;
         if (sellable == 0) revert CurveGraduated();
@@ -411,11 +443,10 @@ contract WeirV2BondingCurve is ReentrancyGuard {
             // Price the clamped fill from the token side, then gross the
             // result back up so the fee legs still come out of the input.
             uint256 net = WeirV2BondingCurveMath.getAmountIn(sellable, quoteReserveBefore, tokenReserveBefore, 0);
-            spent = Math.min(
-                Math.mulDiv(net, BASIS_POINTS, BASIS_POINTS - feeBps - creatorTaxBps, Math.Rounding.Ceil), received
-            );
+            spent = Math.min(Math.mulDiv(net, BASIS_POINTS, BASIS_POINTS - takeBps, Math.Rounding.Ceil), received);
             fee = (spent * feeBps) / BASIS_POINTS;
             tax = (spent * creatorTaxBps) / BASIS_POINTS;
+            snipe = (spent * snipeBps) / BASIS_POINTS;
         }
 
         // Price bound rather than quantity bound, so a partial fill honours
@@ -423,7 +454,8 @@ contract WeirV2BondingCurve is ReentrancyGuard {
         // `tokensOut >= minTokensOut` whenever `spent == received`.
         if (spent * minTokensOut > received * tokensOut) revert SlippageExceeded(tokensOut, minTokensOut);
 
-        _accrueFees(fee, tax);
+        // Snipe tax is paid to the creator in full, same ledger as creatorTax.
+        _accrueFees(fee, tax + snipe);
         trackedQuote += spent;
         trackedTokens -= tokensOut;
         IERC20(token).safeTransfer(recipient, tokensOut);
@@ -434,7 +466,7 @@ contract WeirV2BondingCurve is ReentrancyGuard {
             _sendQuote(msg.sender, refund);
         }
 
-        emit CurveBuy(msg.sender, recipient, spent, tokensOut, fee, tax);
+        emit CurveBuy(msg.sender, recipient, spent, tokensOut, fee, tax + snipe);
         _tryAutoGraduate();
     }
 
@@ -497,7 +529,7 @@ contract WeirV2BondingCurve is ReentrancyGuard {
      */
     function sweepFees(uint256 minBuybackTokensOut) external nonReentrant {
         if (graduated) revert AlreadyGraduated();
-        bool isOperator = msg.sender == feePolicy.feeSweepOperator();
+        bool isOperator = feePolicy.isFeeSweepOperator(msg.sender);
         if (!isOperator && msg.sender != deployer) {
             revert NotFeeSweepOperator();
         }

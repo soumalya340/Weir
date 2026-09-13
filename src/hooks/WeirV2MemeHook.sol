@@ -26,6 +26,10 @@ import {WeirV2BuybackVault} from "../WeirV2BuybackVault.sol";
 import {WeirV2StakingReward} from "../WeirV2StakingReward.sol";
 import {FeePolicySnapshot, IWeirV2FeeEscrow, IWeirV2FeePolicy} from "../interfaces/ILaunchpadV2.sol";
 
+interface WeirV2FutarchyProposalView {
+    function vault() external view returns (address);
+}
+
 /**
  * @title WeirV2MemeHook
  * @notice Singleton Uniswap V4 hook shared by every graduated weir v2 pool.
@@ -94,6 +98,8 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     error NothingToRescue();
     error StakingVaultAlreadySet();
     error StakingVaultMismatch();
+    error FutarchyProposalMismatch();
+    error StakingVaultNotSet();
 
     event FactorySet(address factory);
     event PoolRegistered(PoolId indexed poolId, address memecoin, address quoteToken, address creator);
@@ -125,6 +131,8 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     event MaxInternalPriceImpactUpdated(uint256 bps);
     event ProtocolFeeRecipientUpdated(address recipient);
     event FeeSweepOperatorUpdated(address operator);
+    event FeeSweepOperatorAuthorizationUpdated(address indexed operator, bool authorized);
+    event FutarchyProposalRegistered(PoolId indexed poolId, address proposal);
     event BuybackEnabledUpdated(PoolId indexed poolId, bool enabled);
 
     IWeirV2FeeEscrow public immutable feeEscrow;
@@ -143,7 +151,11 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     uint256 public buybackBurnBps;
     uint256 public hookFeeBps;
     uint256 public maxInternalPriceImpactBps;
+    // Primary operator retained for IWeirV2FeePolicy.feeSweepOperator() and
+    // as the default authorized sweeper. Additional operators live in
+    // feeSweepOperators so liveness does not depend on a single key.
     address public feeSweepOperator;
+    mapping(address => bool) public feeSweepOperators;
 
     mapping(PoolId => LaunchInfo) public launches;
     mapping(PoolId => PoolKey) private _poolKeys;
@@ -196,6 +208,7 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
         hookFeeBps = 100;
         maxInternalPriceImpactBps = 300;
         feeSweepOperator = initialOwner_;
+        feeSweepOperators[initialOwner_] = true;
     }
 
     /**
@@ -294,14 +307,32 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     }
 
     /**
-     * @notice Sets the trusted operator that executes fee conversions with
-     * explicit minimum outputs, preventing arbitrary callers from triggering
-     * predictable swaps against a manipulated spot price.
+     * @notice Sets the primary trusted operator that executes fee conversions
+     * with explicit minimum outputs, preventing arbitrary callers from
+     * triggering predictable swaps against a manipulated spot price. Also
+     * authorizes the new primary in the operator set.
      */
     function setFeeSweepOperator(address operator) external onlyOwner {
         if (operator == address(0)) revert ZeroAddress();
         feeSweepOperator = operator;
+        feeSweepOperators[operator] = true;
         emit FeeSweepOperatorUpdated(operator);
+        emit FeeSweepOperatorAuthorizationUpdated(operator, true);
+    }
+
+    /**
+     * @notice Adds or removes an address from the fee-sweep operator set.
+     * Multiple operators keep fee conversion live if one key is lost or offline.
+     */
+    function setFeeSweepOperatorAuthorization(address operator, bool authorized) external onlyOwner {
+        if (operator == address(0)) revert ZeroAddress();
+        feeSweepOperators[operator] = authorized;
+        emit FeeSweepOperatorAuthorizationUpdated(operator, authorized);
+    }
+
+    /// @inheritdoc IWeirV2FeePolicy
+    function isFeeSweepOperator(address account) public view returns (bool) {
+        return feeSweepOperators[account] || account == feeSweepOperator;
     }
 
     /**
@@ -406,6 +437,13 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
         _poolKeys[poolId] = key;
 
         emit PoolRegistered(poolId, memecoin, quoteToken, creator);
+
+        // Deploy and wire the per-pool staking vault so stakerFeeShareBps is
+        // reachable. Without this, the default 40% staker cut silently folded
+        // back into the creator bucket on every sweep (AUDIT.md #2).
+        WeirV2StakingReward vault = new WeirV2StakingReward(address(this), IERC20(memecoin), quoteToken, feeEscrow);
+        stakingVaults[poolId] = vault;
+        emit StakingVaultRegistered(poolId, address(vault));
     }
 
     /**
@@ -444,6 +482,21 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
 
         stakingVaults[poolId] = vault;
         emit StakingVaultRegistered(poolId, address(vault));
+    }
+
+    /**
+     * @notice Wires a futarchy proposal onto this pool's staking vault after
+     * verifying the proposal is bound to that vault. Restricted to the factory.
+     */
+    function registerFutarchyProposal(PoolId poolId, address proposal) external onlyFactory {
+        WeirV2StakingReward vault = stakingVaults[poolId];
+        if (address(vault) == address(0)) revert StakingVaultNotSet();
+        if (proposal == address(0)) revert ZeroAddress();
+        if (WeirV2FutarchyProposalView(proposal).vault() != address(vault)) {
+            revert FutarchyProposalMismatch();
+        }
+        vault.setFutarchyProposal(proposal);
+        emit FutarchyProposalRegistered(poolId, proposal);
     }
 
     /**
@@ -553,7 +606,7 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
     {
         LaunchInfo memory info = launches[poolId];
         if (!info.registered) revert UnknownPool();
-        bool isOperator = msg.sender == feeSweepOperator;
+        bool isOperator = isFeeSweepOperator(msg.sender);
         if (!isOperator && msg.sender != info.creator) revert NotFeeSweepOperator();
         if (!isOperator && _requiresTrustedOperator(poolId, info)) revert InternalSwapRequiresOperator();
 

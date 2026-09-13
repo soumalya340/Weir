@@ -91,10 +91,10 @@ contract WeirV2FutarchyProposal is ReentrancyGuard {
             address(this)
         );
 
-        // Wires this proposal as the vault's decider before any trading
-        // starts, so the vault can never end up contested by a second
-        // proposal deployed after this one.
-        IWeirV2EarlyExitVault(vault_).setFutarchyProposal(address(this));
+        // Wiring is no longer done here: WeirV2StakingReward.setFutarchyProposal
+        // is hook-gated (AUDIT.md #1). The factory/hook must call
+        // registerFutarchyProposal after deployment, which also prevents an
+        // arbitrary contract with a matching vault() getter from self-wiring.
 
         emit ProposalCreated(vault_, msg.sender, address(passMarket), address(failMarket), closes);
     }

@@ -57,6 +57,8 @@ interface IWeirV2FeePolicy {
     // both phases apply the same conservative bound.
     function maxInternalPriceImpactBps() external view returns (uint256);
     function feeSweepOperator() external view returns (address);
+    /// @notice True when `account` is authorized to run slippage-sensitive fee sweeps.
+    function isFeeSweepOperator(address account) external view returns (bool);
     function currentFeePolicy() external view returns (FeePolicySnapshot memory);
 }
 

@@ -60,6 +60,10 @@ contract MockFeePolicy is IWeirV2FeePolicy {
         return address(this);
     }
 
+    function isFeeSweepOperator(address account) external view override returns (bool) {
+        return account == address(this);
+    }
+
     function currentFeePolicy() external view override returns (FeePolicySnapshot memory) {
         return FeePolicySnapshot({
             protocolFeeRecipient: protocolFeeRecipient_,

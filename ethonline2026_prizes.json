@@ -1,0 +1,1350 @@
+{
+  "event": "ETHOnline 2026",
+  "event_slug": "ethonline2026",
+  "source_url": "https://ethglobal.com/events/ethonline2026/prizes",
+  "scraped_at": "2026-09-02T19:07:16Z",
+  "scraper": "scrapling",
+  "sponsor_count": 11,
+  "track_count": 27,
+  "continuity_track_count": 10,
+  "total_pool_usd": 79500,
+  "toc": [
+    {
+      "slug": "the-graph",
+      "name": "The Graph",
+      "pool": "$15,000",
+      "pool_usd": 15000,
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/the-graph",
+      "anchor_url": "https://ethglobal.com/events/ethonline2026/prizes#the-graph"
+    },
+    {
+      "slug": "hedera",
+      "name": "Hedera",
+      "pool": "$15,000",
+      "pool_usd": 15000,
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/hedera",
+      "anchor_url": "https://ethglobal.com/events/ethonline2026/prizes#hedera"
+    },
+    {
+      "slug": "arc",
+      "name": "Arc",
+      "pool": "$10,000",
+      "pool_usd": 10000,
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/arc",
+      "anchor_url": "https://ethglobal.com/events/ethonline2026/prizes#arc"
+    },
+    {
+      "slug": "world",
+      "name": "World",
+      "pool": "$7,000",
+      "pool_usd": 7000,
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/world",
+      "anchor_url": "https://ethglobal.com/events/ethonline2026/prizes#world"
+    },
+    {
+      "slug": "1inch",
+      "name": "1inch",
+      "pool": "$7,000",
+      "pool_usd": 7000,
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/1inch",
+      "anchor_url": "https://ethglobal.com/events/ethonline2026/prizes#1inch"
+    },
+    {
+      "slug": "ens",
+      "name": "ENS",
+      "pool": "$5,000",
+      "pool_usd": 5000,
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/ens",
+      "anchor_url": "https://ethglobal.com/events/ethonline2026/prizes#ens"
+    },
+    {
+      "slug": "uniswap-foundation",
+      "name": "Uniswap Foundation",
+      "pool": "$5,000",
+      "pool_usd": 5000,
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/uniswap-foundation",
+      "anchor_url": "https://ethglobal.com/events/ethonline2026/prizes#uniswap-foundation"
+    },
+    {
+      "slug": "ledger",
+      "name": "Ledger",
+      "pool": "$5,000",
+      "pool_usd": 5000,
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/ledger",
+      "anchor_url": "https://ethglobal.com/events/ethonline2026/prizes#ledger"
+    },
+    {
+      "slug": "privy",
+      "name": "Privy",
+      "pool": "$5,000",
+      "pool_usd": 5000,
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/privy",
+      "anchor_url": "https://ethglobal.com/events/ethonline2026/prizes#privy"
+    },
+    {
+      "slug": "bazantic",
+      "name": "Bazantic",
+      "pool": "$3,000",
+      "pool_usd": 3000,
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/bazantic",
+      "anchor_url": "https://ethglobal.com/events/ethonline2026/prizes#bazantic"
+    },
+    {
+      "slug": "chainlink",
+      "name": "Chainlink",
+      "pool": "$2,500",
+      "pool_usd": 2500,
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/chainlink",
+      "anchor_url": "https://ethglobal.com/events/ethonline2026/prizes#chainlink"
+    }
+  ],
+  "sponsors": [
+    {
+      "slug": "the-graph",
+      "name": "The Graph",
+      "pool": "$15,000",
+      "pool_usd": 15000,
+      "logo": "https://cdn.ethglobal.com/organizations/pfyco/square-logo/default.png",
+      "website": "https://thegraph.com",
+      "twitter": "https://x.com/graphprotocol",
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/the-graph",
+      "about": "The Graph is blockchain data infrastructure spanning 50+ networks, serving developers, analysts, AI agents, and enterprises with structured, real-time data. Products include Subgraphs, Firehose, Substreams, and Amp. As of 2026: 1.27T+ queries served to 75,000+ projects via independent Indexers.",
+      "coming_soon": false,
+      "prizes": [
+        {
+          "name": "🧩 Best Use of Composable or Standardized Graph Products",
+          "amount": "$5,000",
+          "amount_usd": 5000,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [
+            {
+              "medal": "🥇",
+              "place": "1st place",
+              "amount": "$2,500"
+            },
+            {
+              "medal": "🥈",
+              "place": "2nd place",
+              "amount": "$1,500"
+            },
+            {
+              "medal": "🥉",
+              "place": "3rd place",
+              "amount": "$1,000"
+            }
+          ],
+          "description_markdown": "Build on The Graph's composable and standardized data products. Use Standardized Subgraphs (one shared schema across every protocol of a type) to run a single query across many protocols, compose reusable Substreams packages into new pipelines, or layer the Subgraph MCP on top for cross-protocol analysis. Contributing a new composable Substreams module for an emerging standard, such as ERC-4626 tokenized-vault flows, also counts. The best submissions show the leverage of standards: one query pattern spanning many protocols, or one pipeline reused across chains.",
+          "qualification": [
+            "Either compose two or more of The Graph's products, or build meaningfully on a standardized schema (for example the Messari Standardized Subgraphs).",
+            "Consume live data from a Graph provider, for example Subgraph Studio for Subgraphs or The Graph Market for Substreams. Mocked, local-only, or static datasets do not qualify.",
+            "Simply querying one Subgraph with no composition or standardization does not qualify; consider the Best AI Use Case track instead.",
+            "Authoring or extending a Standardized Subgraph, or contributing a reusable composable Substreams module, is in scope.",
+            "Make the standards leverage clear: show what became easier because a shared schema or composed product was used.",
+            "Submit a public repository and a short demo video (two to four minutes)."
+          ],
+          "extra_points": [],
+          "resources": [
+            {
+              "title": "Messari Standardized Subgraph",
+              "url": "https://thegraph.com/docs/en/subgraphs/existing-subgraphs/standard-subgraphs/"
+            },
+            {
+              "title": "Agent0/ERC-8004 Subgraphs",
+              "url": "https://thegraph.com/docs/en/subgraphs/existing-subgraphs/agent0/"
+            },
+            {
+              "title": "Standardized Substreams",
+              "url": "https://github.com/streamingfast/substreams-chain-modules"
+            },
+            {
+              "title": "Pinax Primitives for EVM Substreams",
+              "url": "https://github.com/pinax-network/substreams-evm"
+            }
+          ]
+        },
+        {
+          "name": "🤖 Best AI Tooling or AI Use Case with The Graph (From Scratch)",
+          "amount": "$5,000",
+          "amount_usd": 5000,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [
+            {
+              "medal": "🥇",
+              "place": "1st place",
+              "amount": "$2,500"
+            },
+            {
+              "medal": "🥈",
+              "place": "2nd place",
+              "amount": "$1,500"
+            },
+            {
+              "medal": "🥉",
+              "place": "3rd place",
+              "amount": "$1,000"
+            }
+          ],
+          "description_markdown": "Description: One AI track, two ways to build. It rewards both the tooling that makes The Graph easier to use from AI environments like Claude, Cursor, and ChatGPT (new or extended MCP servers, agent SKILLs, x402 payment tooling, A2A integrations, framework plugins, or client configs) and the AI agents or apps that use The Graph as their live source of blockchain data (research assistants, trading and execution agents, portfolio copilots, risk monitors, and more).\n- Query 15,000+ Subgraphs through the Subgraph MCP in natural language, stream data with Substreams, or let your agent pay per query autonomously with x402.\n- Featured Substreams challenge: use the Substreams SKILLs to go from a single natural-language prompt to a working, deployed Substreams pipeline.\nTwo eligibility pools: The track is judged in two pools, so you compete against projects built the same way you built yours:\n- Net-new (Start Fresh): projects begun and built during the hackathon. Open-source starter kits are fine; project-specific prior code is not.\n- Continuity (Extend Open Source / Ship a Feature): projects that extend an existing open-source repo or ship a new feature on an existing product. Document the pre-existing work; only work done during the event is judged. Extending The Graph's own AI Suite (for example improving an existing MCP server or SKILL) fits the Continuity pool.\nTHIS TRACK IS THE FROM SCRATCH TRACK",
+          "qualification": [
+            "Use The Graph as a load-bearing part of the project: either the AI tooling targets The Graph's products or AI Suite, or the agent/app uses The Graph (Subgraphs, the Subgraph MCP, or Substreams) as its source of blockchain data.",
+            "Consume live data from a Graph provider, for example querying Subgraphs with an API key from Subgraph Studio, or streaming Substreams via The Graph Market. Mocked, local-only, or static datasets do not qualify.",
+            "Do meaningful work with the data: reasoning, decisions, automation, or a natural-language interface, not just printing a raw query result. Tooling submissions must be reusable infrastructure, not a single end-user app.",
+            "Open-source the code with a clear README or SKILL.md so judges can run it, and submit a public repository plus a short demo video (two to four minutes).",
+            "Select the pool that matches how you built: Start Fresh for net-new, Continuity for extending an existing repo or product. Follow that pool's ETHGlobal rules and document any pre-existing work.",
+            "For the Substreams one-prompt deployment challenge: demonstrate deploying a working Substreams pipeline from a single prompt using the Substreams SKILLs."
+          ],
+          "extra_points": [],
+          "resources": [
+            {
+              "title": "Subgraph MCP",
+              "url": "https://thegraph.com/docs/en/subgraphs/tooling/subgraph-mcp/introduction/"
+            },
+            {
+              "title": "Subgraph SKILLs",
+              "url": "https://github.com/graphprotocol/subgraphs-skills"
+            },
+            {
+              "title": "Substreams SKILLs",
+              "url": "https://github.com/streamingfast/substreams-skills"
+            }
+          ]
+        },
+        {
+          "name": "🤖 Best AI Tooling or AI Use Case with The Graph (Continuity)",
+          "amount": "$5,000",
+          "amount_usd": 5000,
+          "continuity_only": true,
+          "continuity_url": "https://x.com/ETHGlobal/status/2056399209767866682",
+          "payout_note": null,
+          "places": [
+            {
+              "medal": "🥇",
+              "place": "1st place",
+              "amount": "$2,500"
+            },
+            {
+              "medal": "🥈",
+              "place": "2nd place",
+              "amount": "$1,500"
+            },
+            {
+              "medal": "🥉",
+              "place": "3rd place",
+              "amount": "$1,000"
+            }
+          ],
+          "description_markdown": "**🆕 This prize is only available to Continuity Track participants →**\n\nDescription: One AI track, two ways to build. It rewards both the tooling that makes The Graph easier to use from AI environments like Claude, Cursor, and ChatGPT (new or extended MCP servers, agent SKILLs, x402 payment tooling, A2A integrations, framework plugins, or client configs) and the AI agents or apps that use The Graph as their live source of blockchain data (research assistants, trading and execution agents, portfolio copilots, risk monitors, and more).\n- Query 15,000+ Subgraphs through the Subgraph MCP in natural language, stream data with Substreams, or let your agent pay per query autonomously with x402.\n- Featured Substreams challenge: use the Substreams SKILLs to go from a single natural-language prompt to a working, deployed Substreams pipeline.\nTwo eligibility pools: The track is judged in two pools, so you compete against projects built the same way you built yours:\n- Net-new (Start Fresh): projects begun and built during the hackathon. Open-source starter kits are fine; project-specific prior code is not.\n- Continuity (Extend Open Source / Ship a Feature): projects that extend an existing open-source repo or ship a new feature on an existing product. Document the pre-existing work; only work done during the event is judged. Extending The Graph's own AI Suite (for example improving an existing MCP server or SKILL) fits the Continuity pool.\nTHIS TRACK IS THE CONTINUITY TRACK",
+          "qualification": [
+            "Use The Graph as a load-bearing part of the project: either the AI tooling targets The Graph's products or AI Suite, or the agent/app uses The Graph (Subgraphs, the Subgraph MCP, or Substreams) as its source of blockchain data.",
+            "Consume live data from a Graph provider, for example querying Subgraphs with an API key from Subgraph Studio, or streaming Substreams via The Graph Market. Mocked, local-only, or static datasets do not qualify.",
+            "Do meaningful work with the data: reasoning, decisions, automation, or a natural-language interface, not just printing a raw query result. Tooling submissions must be reusable infrastructure, not a single end-user app.",
+            "Open-source the code with a clear README or SKILL.md so judges can run it, and submit a public repository plus a short demo video (two to four minutes).",
+            "Select the pool that matches how you built: Start Fresh for net-new, Continuity for extending an existing repo or product. Follow that pool's ETHGlobal rules and document any pre-existing work.",
+            "For the Substreams one-prompt deployment challenge: demonstrate deploying a working Substreams pipeline from a single prompt using the Substreams SKILLs."
+          ],
+          "extra_points": [],
+          "resources": [
+            {
+              "title": "Subgraph MCP",
+              "url": "https://thegraph.com/docs/en/subgraphs/tooling/subgraph-mcp/introduction/"
+            },
+            {
+              "title": "Subgraph SKILLs",
+              "url": "https://github.com/graphprotocol/subgraphs-skills"
+            },
+            {
+              "title": "Substreams SKILLs",
+              "url": "https://github.com/streamingfast/substreams-skills"
+            }
+          ]
+        }
+      ],
+      "resources": [],
+      "jobs": [],
+      "url": "https://ethglobal.com/events/ethonline2026/prizes/the-graph"
+    },
+    {
+      "slug": "hedera",
+      "name": "Hedera",
+      "pool": "$15,000",
+      "pool_usd": 15000,
+      "logo": "https://cdn.ethglobal.com/organizations/bdi3h/square-logo/default.png",
+      "website": "https://hedera.com/",
+      "twitter": "https://x.com/hedera",
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/hedera",
+      "about": "Hedera stands apart as a leading EVM blockchain through its distinctive developer experience, enabling developers of all backgrounds to leverage familiar tools like Solidity or its JavaScript SDK* to build breakthrough applications.\n\nLinux Foundation Decentralized Trust manages Hedera’s open-source codebase (as Project Hiero) including the hashgraph consensus algorithm which enables 10,000+ TPS, 3s finality, low fees priced in USD, and the highest grade (aBFT) of security. Meanwhile, the Hedera public network is governed by a diverse council of the world’s leading institutions to ensure transparent and fair decision-making.\n\nBy empowering the development of applications that solve real-world challenges across DeFi, tokenization, AI, digital identity, and more, Hedera is the trust layer that underpins a decentralized future.\n\nFor more information, visit www.hedera.com, or follow us on X at @hedera, Telegram at t.me/hederahashgraph, or Discord at www.hedera.com/discord. The Hedera whitepaper can be found at www.hedera.com/papers.\n\n*Hedera also hasSDKs for Java, Python, Rust, Go, and Swift!",
+      "coming_soon": false,
+      "prizes": [
+        {
+          "name": "🤖 AI & Agentic Payments on Hedera",
+          "amount": "$6,000",
+          "amount_usd": 6000,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": "Up to 3 teams will receive $2,000",
+          "places": [],
+          "description_markdown": "The agentic economy needs payment rails that work at machine speed: sub-second finality, predictable sub-cent fees, and native token operations without smart contract overhead. Hedera is built for this, but x402 on Hedera is still short of one thing: actual services you can pay for.\n\nThat is the challenge. Stand up a real x402-gated service on Hedera and build the platform that consumes it. Wrap an API, sell inference by the call, meter data or compute, then show an agent discovering it and paying for it without an API key or a subscription in sight.\n\n**Ideas to get you started**\n- Pay-per-call inference endpoint. Host a model behind x402 and build an agent that budgets across providers.\n- Metered data feed. Price by query, settle per request, no seats or subscriptions.\n- Agent marketplace. Services register, agents discover and pay, all in HBAR or HTS tokens.\n- Micropayment streaming. Settle every few seconds for compute or bandwidth in use.",
+          "qualification": [
+            "Host a live x402-gated service on Hedera testnet or mainnet, settled through the Blocky402 facilitator.",
+            "Build a platform or agent that consumes that service and completes at least one real paid request end to end.",
+            "Public GitHub repo with a README covering setup, architecture, and the payment flow.",
+            "Demo video of five minutes or less showing the paid request executing."
+          ],
+          "extra_points": [
+            "Pay-per-call inference, data, or compute metering rather than a flat per-request charge",
+            "Multi-agent negotiation and settlement via A2A or ACP",
+            "On-chain agent identity using ERC-8004 or HCS-14",
+            "Agent discovery via UCP, or a directory that makes your service findable by other agents",
+            "HTS tokens or custom fee schedules in the settlement path",
+            "Verifiable payment audit trails on HCS",
+            "Recurring or streamed payments using Scheduled Transactions"
+          ],
+          "resources": [
+            {
+              "title": "Hedera Code Snippets",
+              "url": "https://github.com/hedera-dev/hedera-code-snippets"
+            },
+            {
+              "title": "Hedera Discord",
+              "url": "https://hedera.com/discord"
+            },
+            {
+              "title": "Hedera and the x402 payment standard",
+              "url": "https://hedera.com/blog/hedera-and-the-x402-payment-standard/"
+            },
+            {
+              "title": "Blocky402 facilitator",
+              "url": "https://blocky402.com/"
+            },
+            {
+              "title": "x402 pay-per-request inference PoC",
+              "url": "https://github.com/hedera-dev/x402-inference-pay-per-request-poc"
+            },
+            {
+              "title": "Hedera Agent Kit",
+              "url": "https://github.com/hashgraph/hedera-agent-kit-js"
+            },
+            {
+              "title": "Hedera developer docs",
+              "url": "https://docs.hedera.com/"
+            },
+            {
+              "title": "Starter template",
+              "url": "https://github.com/hedera-dev/scaffold-hbar"
+            },
+            {
+              "title": "x402 Protocol",
+              "url": "https://github.com/x402-foundation/x402"
+            }
+          ]
+        },
+        {
+          "name": "🛠️ Open Source — Improve the Hedera Harness",
+          "amount": "$2,000",
+          "amount_usd": 2000,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": "Up to 2 teams will receive $1,000",
+          "places": [],
+          "description_markdown": "The Hedera Harness is the tool layer developers reach for first, which makes it the highest-leverage thing in the ecosystem to improve. This track rewards contribution over greenfield: make the harness better, or build a new one on its foundations.\n\n**Ideas**\n- Extend service coverage into areas the harness handles thinly today\n- Port the harness to another language or runtime\n- Fix the rough edges you personally hit in your first hour with Hedera\n- Add a testing or local-development mode that removes testnet round trips",
+          "qualification": [
+            "Either submit a meaningful contribution to the Hedera Harness (open PR, not merged is fine) or build a new harness that extends or takes direct inspiration from it.",
+            "Public GitHub repo or PR link, with a README or PR description explaining the problem you solved and how to run it.",
+            "Demo video of five minutes or less showing the improvement working."
+          ],
+          "extra_points": [
+            "New service coverage, better ergonomics, or fewer lines of code needed to get to a working transaction",
+            "Tests, documentation, or examples alongside the code",
+            "A harness targeting a language or framework the current one does not cover",
+            "Clear before and after evidence of the developer experience gain"
+          ],
+          "resources": [
+            {
+              "title": "Hedera Harness",
+              "url": "https://github.com/hedera-dev/hedera-harness"
+            },
+            {
+              "title": "Hedera Skills",
+              "url": "https://github.com/hedera-dev/hedera-skills"
+            },
+            {
+              "title": "Getting started with the Hedera SDKs",
+              "url": "https://docs.hedera.com/hedera/getting-started-sdk-developers"
+            },
+            {
+              "title": "Hedera developer tooling overview",
+              "url": "https://hedera.com/developer-tooling/"
+            },
+            {
+              "title": "Hedera code snippets",
+              "url": "https://github.com/hedera-dev/hedera-code-snippets"
+            },
+            {
+              "title": "Hedera Discord",
+              "url": "https://hedera.com/discord"
+            }
+          ]
+        },
+        {
+          "name": "🪙 Tokenization of Anything",
+          "amount": "$6,000",
+          "amount_usd": 6000,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": "Up to 3 teams will receive $2,000",
+          "places": [],
+          "description_markdown": "Institutional adoption is the dominant narrative in the market right now, and tokenised collateral is the sharpest edge of it. Post tokenised treasuries against a repo agreement and the collateral leg becomes programmatic and provable instead of a parallel paper process.\n\nBuild an enterprise finance application on Hedera using the Asset Tokenization Studio. Use the SDK as it stands, adapt it, extend the web application, or improve it. ATS supports ERC-3643 alongside ERC-1400, with compliance controls, corporate actions, and coupon handling already in the box. Real asset classes and real lifecycle management will be favoured over a token with a name on it.\n\n**Ideas**\n- Tokenised collateral for repo. Post tokenised treasuries as collateral with programmatic proof and release.\n- Bonds with a lifecycle. Issuance, coupon payments, and redemption at maturity, all on-chain.\n- Secondary market for ATS assets. Order book or auction with compliance enforced at transfer.\n- Tokenised equities. KYC-gated register with automated corporate actions.\n- Cashflow tokenisation. Invoices, receivables, or royalty streams sold at a discount and settled on maturity.",
+          "qualification": [
+            "Use the Asset Tokenization Studio (SDK, contracts, web application, or a combination) to issue or manage a tokenised asset.",
+            "Deploy and demonstrate on Hedera testnet.",
+            "Public GitHub repo, with contracts verified on HashScan where applicable.",
+            "Demo video of five minutes or less showing issuance, configuration, and at least one lifecycle operation such as a transfer, compliance check, or distribution."
+          ],
+          "extra_points": [
+            "A secondary market for ATS-issued assets, which the Studio does not have today",
+            "Compliance controls in use: KYC grants, freezes, transfer restrictions, pauses",
+            "Custom fee schedules, coupon or dividend distributions, royalty flows",
+            "Oracle integration for asset pricing or NAV",
+            "Scheduled Transactions for vesting, coupon payments, or maturity settlement",
+            "Contributions back upstream to ATS"
+          ],
+          "resources": [
+            {
+              "title": "Asset Tokenization Studio monorepo",
+              "url": "https://github.com/hashgraph/asset-tokenization-studio"
+            },
+            {
+              "title": "ATS SDK on npm",
+              "url": "https://www.npmjs.com/package/@hashgraph/asset-tokenization-sdk"
+            },
+            {
+              "title": "Starter templates: scaffold-hbar",
+              "url": "https://github.com/hedera-dev/scaffold-hbar"
+            },
+            {
+              "title": "Hedera Discord",
+              "url": "https://hedera.com/discord"
+            },
+            {
+              "title": "Hedera developer tooling",
+              "url": "https://hedera.com/developer-tooling/"
+            },
+            {
+              "title": "Hedera developer docs",
+              "url": "https://docs.hedera.com/"
+            },
+            {
+              "title": "ATS product overview and tutorials",
+              "url": "https://hedera.com/product/asset-tokenization-studio/"
+            },
+            {
+              "title": "ATS documentation",
+              "url": "https://docs.hedera.com/hedera/open-source-solutions/asset-tokenization-studio-ats"
+            }
+          ]
+        },
+        {
+          "name": "♻️ Continuity",
+          "amount": "$1,000",
+          "amount_usd": 1000,
+          "continuity_only": true,
+          "continuity_url": "https://x.com/ETHGlobal/status/2056399209767866682",
+          "payout_note": null,
+          "places": [],
+          "description_markdown": "**🆕 This prize is only available to Continuity Track participants →**\n\nBringing back a project you have already built on Hedera? This track is for you. We want to see it move forward, not resubmitted.",
+          "qualification": [
+            "The project must have been built for a previous hackathon or already exist in some form on Hedera.",
+            "Demonstrate substantive new work completed during this event: new features, new Hedera services integrated, or a significant architectural change. Polish and bug fixes alone will not qualify.",
+            "Public GitHub repo with a README that clearly separates what existed before from what is new, ideally with commit history or a diff to back it up.",
+            "Demo video of five minutes or less focused on the new work."
+          ],
+          "extra_points": [
+            "Evidence of real users, traction, or deployment beyond the demo",
+            "Newly integrated Hedera services that were not in the original build",
+            "A clear roadmap for what comes after the hackathon"
+          ],
+          "resources": [
+            {
+              "title": "Start building on Hedera",
+              "url": "https://hedera.com/start-building/"
+            },
+            {
+              "title": "Hedera developer docs",
+              "url": "https://docs.hedera.com/"
+            },
+            {
+              "title": "Hedera developer tooling",
+              "url": "https://hedera.com/developer-tooling/"
+            },
+            {
+              "title": "Hedera developers code repository",
+              "url": "https://docs.hedera.com/solutions/tools/code-repo"
+            },
+            {
+              "title": "Hedera code snippets",
+              "url": "https://github.com/hedera-dev/hedera-code-snippets"
+            },
+            {
+              "title": "Hedera Discord",
+              "url": "https://hedera.com/discord"
+            }
+          ]
+        }
+      ],
+      "resources": [],
+      "jobs": [],
+      "url": "https://ethglobal.com/events/ethonline2026/prizes/hedera"
+    },
+    {
+      "slug": "arc",
+      "name": "Arc",
+      "pool": "$10,000",
+      "pool_usd": 10000,
+      "logo": "https://cdn.ethglobal.com/organizations/tc25z/square-logo/default.png",
+      "website": "https://www.arc.network/",
+      "twitter": "https://x.com/Arc",
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/arc",
+      "about": "Arc is the purpose-built L1 blockchain from Circle, EVM-compatible, and serves as the Economic OS for the internet — powering the programmable trust layer and transaction engine where capital, humans, and machines coordinate to drive real economic growth. Arc enables builders and issuers worldwide to power the next era of onchain lending, capital markets, FX, and payments - igniting liquidity across currencies and asset classes.",
+      "coming_soon": false,
+      "prizes": [
+        {
+          "name": "🏆 Best DeFi/Onchain Finance Application",
+          "amount": "$1,667",
+          "amount_usd": 1667,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [],
+          "description_markdown": "### Build stablecoin-native DeFi on Arc.\nBuild lending, borrowing, swaps, liquidity, FX, yield, payments, treasury or fintech infrastructure using Arc and USDC.\n\n**What we're looking for**\n- Meaningful use of Arc and USDC\n- Advanced programmable money flows such as conditional payments, onchain automation or multi-step settlement\n- Payment, liquidity or treasury workflows using App Kits where relevant\n- Applications that show why stablecoin-native infrastructure changes what is possible\nCore products: Arc, USDC, App Kits, Circle Wallets, Circle Contracts, CCTP, Gateway, StableFX.",
+          "qualification": [
+            "Submissions will be evaluated based on the following parameters. Please be clear what bounty you are submitting for as a part of your submission!",
+            "Functional MVP and diagram: Projects must demonstrate a working frontend and backend plus an architecture diagram.",
+            "Video demonstration + presentation: succinctly outlining the project's core functions and its effective use of Circle's Developer tools/tech is required, supported by detailed documentation.",
+            "Link to GitHub/Replit repo"
+          ],
+          "extra_points": [],
+          "resources": []
+        },
+        {
+          "name": "🏆 Best Agentic Economy Application with Circle Agent Stack",
+          "amount": "$1,667",
+          "amount_usd": 1667,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [],
+          "description_markdown": "### Build autonomous agents that transact on Arc.\nBuild AI agents that hold wallets, make payments, manage risk, settle jobs or transact with other agents using USDC.\n\n**What we're looking for**\n- Agents with clear decision logic tied to real signals\n- Autonomous spending, payments or settlement flows using USDC\n- Use of Agent Stack to connect agents to wallets, USDC payments and onchain actions\n- Use of Nanopayments, Paymaster or App Kits where relevant for agent-to-agent or service payments\nCore products: Arc, USDC, Agent Stack, App Kits, Circle Wallets, Circle Contracts, Nanopayments, Paymaster.",
+          "qualification": [
+            "Submissions will be evaluated based on the following parameters. Please be clear what bounty you are submitting for as a part of your submission!",
+            "Functional MVP and diagram:",
+            "Projects must demonstrate a working frontend and backend plus an architecture diagram.",
+            "Video demonstration + presentation: Succinctly outlining the project's core functions and its effective use of - Circle's Developer tools/tech is required, supported by detailed documentation.",
+            "Link to GitHub/Replit repo"
+          ],
+          "extra_points": [],
+          "resources": []
+        },
+        {
+          "name": "🏆 Best DeFi or Agentic Application",
+          "amount": "$1,666",
+          "amount_usd": 1666,
+          "continuity_only": true,
+          "continuity_url": "https://x.com/ETHGlobal/status/2056399209767866682",
+          "payout_note": null,
+          "places": [],
+          "description_markdown": "**🆕 This prize is only available to Continuity Track participants →**\n### Build stablecoin-native DeFi on Arc.\nBuild lending, borrowing, swaps, liquidity, FX, yield, payments, treasury or fintech infrastructure using Arc and USDC.\n\n**What we're looking for**\n- Meaningful use of Arc and USDC\n- Advanced programmable money flows such as conditional payments, onchain automation or multi-step settlement\n- Payment, liquidity or treasury workflows using App Kits where relevant\n- Applications that show why stablecoin-native infrastructure changes what is possible\nCore products: Arc, USDC, App Kits, Circle Wallets, Circle Contracts, CCTP, Gateway, StableFX.\n### Build autonomous agents that transact on Arc.\nBuild AI agents that hold wallets, make payments, manage risk, settle jobs or transact with other agents using USDC.\n\n**What we're looking for**\n- Agents with clear decision logic tied to real signals\n- Autonomous spending, payments or settlement flows using USDC\n- Use of Agent Stack to connect agents to wallets, USDC payments and onchain actions\n- Use of Nanopayments, Paymaster or App Kits where relevant for agent-to-agent or service payments\nCore products: Arc, USDC, Agent Stack, App Kits, Circle Wallets, Circle Contracts, Nanopayments, Paymaster.",
+          "qualification": [
+            "Submissions will be evaluated based on the following parameters. Please be clear what bounty you are submitting for as a part of your submission!",
+            "Functional MVP and diagram:",
+            "Projects must demonstrate a working frontend and backend plus an architecture diagram.",
+            "Video demonstration + presentation: Succinctly outlining the project's core functions and its effective use of - Circle's Developer tools/tech is required, supported by detailed documentation.",
+            "Link to GitHub/Replit repo",
+            "Be registered as a Continuity Project, under the Continuity Track"
+          ],
+          "extra_points": [],
+          "resources": []
+        },
+        {
+          "name": "🏆 Launch on Arc Testnet & Push to Mainnet",
+          "amount": "$3,500",
+          "amount_usd": 3500,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [
+            {
+              "medal": "🥇",
+              "place": "1st place",
+              "amount": "$2,500"
+            },
+            {
+              "medal": "🥈",
+              "place": "2nd place",
+              "amount": "$1,000"
+            }
+          ],
+          "description_markdown": "Add a working Arc integration. The goal isn't just to prototype: we want to see projects that are ready to ship to mainnet!\n\n**What We're Looking For**\n- USDC or EURC payment flows on Arc added to a commerce, fintech, or wallet product\n- Crosschain transfers or unified balance integrated into a production project, with Arc as the core settlement layer\n- Agentic payments shipped into an AI agent or API monetization tool\n- Stablecoin settlement or escrow logic on Arc added to a DeFi protocol or marketplace\n- Arc-powered treasury or FX features built into a multi-chain product",
+          "qualification": [
+            "Submissions will be evaluated based on the following parameters.",
+            "Please be clear which track you are submitting for as part of your submission.",
+            "Functional MVP and Diagram",
+            "Projects must demonstrate a working frontend and backend plus an architecture diagram.",
+            "Video demonstration + presentation: succinctly outline the project's core functions and its effective use of Circle's developer tools, supported by detailed documentation.",
+            "Link to GitHub/Replit repo",
+            "Projects must be deployed or deployment-ready on Arc mainnet by September 30."
+          ],
+          "extra_points": [],
+          "resources": []
+        },
+        {
+          "name": "🏆 Launch on Arc Testnet & Push to Mainnet",
+          "amount": "$1,500",
+          "amount_usd": 1500,
+          "continuity_only": true,
+          "continuity_url": "https://x.com/ETHGlobal/status/2056399209767866682",
+          "payout_note": null,
+          "places": [],
+          "description_markdown": "**🆕 This prize is only available to Continuity Track participants →**\n### Already building?\nTake a project you own — an existing MVP, open source repo, or live product — and add a working Arc integration. The goal isn't just to prototype: we want to see projects that are ready to ship to mainnet!\n\n**What We're Looking For**\n- USDC or EURC payment flows on Arc added to an existing commerce, fintech, or wallet product\n- Crosschain transfers or unified balance integrated into a production project, with Arc as the core settlement layer\n- Agentic payments shipped into an existing AI agent or API monetization tool\n- Stablecoin settlement or escrow logic on Arc added to an existing DeFi protocol or marketplace\n- Arc-powered treasury or FX features built into a live multi-chain product",
+          "qualification": [
+            "Submissions will be evaluated based on the following parameters.",
+            "Please be clear which track you are submitting for as part of your submission.",
+            "Functional MVP and Diagram",
+            "Projects must demonstrate a working frontend and backend plus an architecture diagram.",
+            "Video demonstration + presentation: succinctly outline the project's core functions and its effective use of Circle's developer tools, supported by detailed documentation.",
+            "Link to GitHub/Replit repo",
+            "Projects must be deployed or deployment-ready on Arc mainnet by September 30."
+          ],
+          "extra_points": [],
+          "resources": []
+        }
+      ],
+      "resources": [
+        {
+          "title": "Arc Docs",
+          "url": "https://docs.arc.io/"
+        },
+        {
+          "title": "App Kits",
+          "url": "https://docs.arc.io/app-kit"
+        },
+        {
+          "title": "Circle Dev Docs",
+          "url": "https://developers.circle.com/"
+        },
+        {
+          "title": "Agent Stack Starter Kit",
+          "url": "https://github.com/circlefin/agent-stack-starter-kits"
+        }
+      ],
+      "jobs": [],
+      "url": "https://ethglobal.com/events/ethonline2026/prizes/arc"
+    },
+    {
+      "slug": "world",
+      "name": "World",
+      "pool": "$7,000",
+      "pool_usd": 7000,
+      "logo": "https://cdn.ethglobal.com/organizations/3zpxc/square-logo/default.png",
+      "website": "https://world.org",
+      "twitter": "https://x.com/worldnetwork",
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/world",
+      "about": "World’s developer stack helps builders create products for verified humans and AI-assisted interactions. World ID enables apps to confirm someone is a unique human without revealing their identity. AgentKit helps identify when agents are backed by real humans rather than bots or scripts, letting products grant access, authorization, or execution rights on that basis. Selfie Check offers a low-friction, selfie-based credential that confirms a real, live person is behind the screen, without requiring an Orb",
+      "coming_soon": false,
+      "prizes": [
+        {
+          "name": "🤖 AgentKit Continuity",
+          "amount": "$3,500",
+          "amount_usd": 3500,
+          "continuity_only": true,
+          "continuity_url": "https://x.com/ETHGlobal/status/2056399209767866682",
+          "payout_note": null,
+          "places": [],
+          "description_markdown": "**🆕 This prize is only available to Continuity Track participants →**\n\nExtend an existing project with AgentKit to distinguish a bot from an agent acting on behalf of a real, unique human. Explore durable human-backed agent authorization for access, commerce, rate limits, trust, and continuity across services.",
+          "qualification": [
+            "Uses AgentKit in a meaningful way.",
+            "Shows a working app.",
+            "Registers or resolves agents through AgentBook where relevant.",
+            "Uses the World ID Sandbox App to test the project remotely.",
+            {
+              "text": "Includes feedback document on:",
+              "children": [
+                "AgentKit docs and integration flow.",
+                "Developer Portal navigation, search, product discovery, and debugging guidance.",
+                "Sandbox App states, proof flows, test users, errors, and edge cases.",
+                "What was confusing, missing, broken, or hard to test."
+              ]
+            }
+          ],
+          "extra_points": [],
+          "resources": [
+            {
+              "title": "AgentKit",
+              "url": "https://docs.world.org/agents/agent-kit/integrate"
+            },
+            {
+              "title": "AgentKit Repo",
+              "url": "https://github.com/worldcoin/agentkit"
+            }
+          ]
+        },
+        {
+          "name": "🤳🏼 Selfie Check",
+          "amount": "$3,500",
+          "amount_usd": 3500,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [],
+          "description_markdown": "Build and demo a realistic Selfie Check flow that validates where a low-friction, low-assurance biometric credential is useful for risk, eligibility, fairness, continuity, or abuse prevention.",
+          "qualification": [
+            "Uses Selfie Check or a Selfie Check-compatible World ID credential flow in a meaningful way.",
+            "Treats Selfie Check as a risk, eligibility, fairness, continuity, or abuse-prevention signal",
+            "Uses the World ID Sandbox App to test and demo the flow remotely.",
+            {
+              "text": "Includes feedback document on:",
+              "children": [
+                "SelfieCheck docs and integration flow.",
+                "Developer Portal navigation, search, product discovery, and debugging guidance.",
+                "Sandbox App states, proof flows, test users, errors, and edge cases.",
+                "What was confusing, missing, broken, or hard to test."
+              ]
+            },
+            "Shows a working app"
+          ],
+          "extra_points": [],
+          "resources": [
+            {
+              "title": "Selfie Check",
+              "url": "https://docs.world.org/world-id/credentials/11"
+            },
+            {
+              "title": "Selfie Check Sandbox Testing",
+              "url": "https://docs.world.org/world-id/sandbox/testing-selfie-check"
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "Sandbox Access",
+          "url": "https://forms.gle/mqbaiwMvX5MzmKdY8"
+        },
+        {
+          "title": "AgentKit integration guide",
+          "url": "https://docs.world.org/agents/agent-kit/integrate"
+        },
+        {
+          "title": "AgentBook registration",
+          "url": "https://docs.world.org/agents/agent-kit/integrate#step-2-register-the-agent-in-agentbook"
+        },
+        {
+          "title": "Test Selfie Check in Sandbox",
+          "url": "https://docs.world.org/world-id/sandbox/testing-selfie-check"
+        },
+        {
+          "title": "Selfie Check (Beta)",
+          "url": "https://docs.world.org/world-id/idkit/credentials#selfie-check-beta"
+        },
+        {
+          "title": "World Developer Portal",
+          "url": "https://developer.world.org"
+        },
+        {
+          "title": "World Docs",
+          "url": "https://docs.world.org/"
+        }
+      ],
+      "jobs": [],
+      "url": "https://ethglobal.com/events/ethonline2026/prizes/world"
+    },
+    {
+      "slug": "1inch",
+      "name": "1inch",
+      "pool": "$7,000",
+      "pool_usd": 7000,
+      "logo": "https://cdn.ethglobal.com/organizations/if0ri/square-logo/default.png",
+      "website": "https://1inch.com/",
+      "twitter": "https://x.com/1inch",
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/1inch",
+      "about": "1inch is a unified DeFi ecosystem, built around the DEX aggregator with the best swap rates.\n\nSwap, hold & track digital assets - and ship scalable, secure applications with the complete Web3 stack.\n\n1inch protocols access hundreds of liquidity sources across 12+ chains, including Solana, for secure trading at the best rates. Builders can unlock them all with 1inch Developer Portal: 17 APIs that bring you the technologies you need to scale.\n\nThe 1inch Swap API gives you optimized routes with the new Pathfinder algorithm; Fusion and Fusion+ are the building blocks of intent-based and cross-chain swaps, with MEV protection and zero gas fees as standard. The rest offer everything from spot price and node access to limit orders and dynamic gas pricing.\n\nWith complete usage statistics and API management, custom plan configuration, and a one-click Swagger UI - 1inch APIs and the Developer Portal give you the tools and adaptability you need to build your project.",
+      "coming_soon": false,
+      "prizes": [
+        {
+          "name": "💧 Build an Aqua App",
+          "amount": "$5,000",
+          "amount_usd": 5000,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [
+            {
+              "medal": "🥇",
+              "place": "1st place",
+              "amount": "$2,500"
+            },
+            {
+              "medal": "🥈",
+              "place": "2nd place",
+              "amount": "$1,500"
+            },
+            {
+              "medal": "🥉",
+              "place": "3rd place",
+              "amount": "$1,000"
+            }
+          ],
+          "description_markdown": "Create a custom Aqua app that implements a sophisticated DeFi position. If you use SwapVM, you may modify SwapVM opcodes and define your own instructions. The final positions must be demonstrated through tests scripts or a UI.\n\nProjects that utilize SwapVM will be scored higher during the final judging.",
+          "qualification": [
+            "Official Aqua/SwapVM contracts must be used (redeployments of a modified SwapVM contract is allowed)",
+            "Onchain execution of token transfers should be presented during the final demo (local forks are ok)",
+            "Proper Git commit history (no single-commit entries on the final day)"
+          ],
+          "extra_points": [],
+          "resources": [
+            {
+              "title": "SwapVM Smart Contracts",
+              "url": "https://github.com/1inch/swap-vm/tree/main"
+            },
+            {
+              "title": "Aqua Smart Contracts",
+              "url": "https://github.com/1inch/aqua"
+            },
+            {
+              "title": "Aqua SDK",
+              "url": "https://github.com/1inch/sdks/tree/master/typescript/aqua"
+            }
+          ]
+        },
+        {
+          "name": "💦 Build an Aqua App - Continuity Track",
+          "amount": "$2,000",
+          "amount_usd": 2000,
+          "continuity_only": true,
+          "continuity_url": "https://x.com/ETHGlobal/status/2056399209767866682",
+          "payout_note": null,
+          "places": [
+            {
+              "medal": "🥇",
+              "place": "1st place",
+              "amount": "$1,500"
+            },
+            {
+              "medal": "🥈",
+              "place": "2nd place",
+              "amount": "$500"
+            }
+          ],
+          "description_markdown": "**🆕 This prize is only available to Continuity Track participants →**\n\nCreate a custom Aqua app that implements a sophisticated DeFi position. If you use SwapVM, you may modify SwapVM opcodes and define your own instructions. The final positions must be demonstrated through tests scripts or a UI.\n\nProjects that utilize SwapVM will be scored higher during the final judging.",
+          "qualification": [
+            "Official Aqua/SwapVM contracts must be used (redeployments of a modified SwapVM contract is allowed)",
+            "Onchain execution of token transfers should be presented during the final demo (local forks are ok)",
+            "Proper Git commit history (no single-commit entries on the final day)"
+          ],
+          "extra_points": [],
+          "resources": [
+            {
+              "title": "SwapVM Contracts",
+              "url": "https://github.com/1inch/swap-vm/tree/main"
+            },
+            {
+              "title": "Aqua Smart Contracts",
+              "url": "https://github.com/1inch/aqua"
+            },
+            {
+              "title": "Aqua SDK",
+              "url": "https://github.com/1inch/sdks/tree/master/typescript/aqua"
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "SwapVM Whitepaper",
+          "url": "https://github.com/1inch/swap-vm/blob/release/1.1/docs/whitepaper-swap-vm-1.0.pdf"
+        },
+        {
+          "title": "Aqua Whitepaper",
+          "url": "https://github.com/1inch/aqua/blob/main/docs/whitepaper-aqua-1.0.pdf"
+        }
+      ],
+      "jobs": [
+        {
+          "title": "Software Engineer Blockchain / Web3",
+          "company": "1inch",
+          "url": "https://ethglobal.com/jobs/software-engineer-blockchain-web3-1i87e"
+        }
+      ],
+      "url": "https://ethglobal.com/events/ethonline2026/prizes/1inch"
+    },
+    {
+      "slug": "ens",
+      "name": "ENS",
+      "pool": "$5,000",
+      "pool_usd": 5000,
+      "logo": "https://cdn.ethglobal.com/organizations/bw7y9/square-logo/default.png",
+      "website": "https://ens.domains",
+      "twitter": "https://x.com/ensdomains",
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/ens",
+      "about": "ENS is the universal pointer for anything on the internet. It turns wallet addresses into human-readable names like yourname.eth — a portable, onchain profile that works across every app, chain, and wallet.\n\nDevelopers use ENS to replace raw addresses with real identities, build decentralized websites, and create scalable subname ecosystems. As AI agents become first-class onchain actors, ENS is how you give them a name, a reputation, and a place to be found.",
+      "coming_soon": false,
+      "prizes": [
+        {
+          "name": "🧬 Best Use of ENSv2",
+          "amount": "$4,500",
+          "amount_usd": 4500,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [
+            {
+              "medal": "🥇",
+              "place": "1st place",
+              "amount": "$1,500"
+            },
+            {
+              "medal": "🥈",
+              "place": "2nd place",
+              "amount": "$1,500"
+            },
+            {
+              "medal": "🥉",
+              "place": "3rd place",
+              "amount": "$1,000"
+            },
+            {
+              "medal": "🏅",
+              "place": "Runner-Up",
+              "amount": "$500"
+            }
+          ],
+          "description_markdown": "ENSv2 beta is now live on Sepolia — be among the first to build on it. Explore the new hierarchical registry structure: resolve subnames straight off a parent's resolver with wildcard resolution, or deploy your own subname registry to tokenize and manage subnames under your own rules. Use Enhanced Access Control, the shared, role-based permission system behind both registries and resolvers, to delegate specific rights — like letting an account edit only certain text records on a name. Give subnames their own Permissioned Resolver so they fully own their data, mix in record aliasing at the resolver level or namespace aliasing via a shared registry, and combine it all to build subname setups — expiring, revocable, non-transferable vs. transferable, even forever names with no parent control. Bonus points if you bring AI agents into the mix — think agents as namespaces, each with their own identity and permissions.",
+          "qualification": [
+            "Project must be built on ENSv2 (Sepolia). ENSv2 features should be central to the product, not a cosmetic add-on. Your demo must be functional and not just include hard-coded values. Upon submission, your project showcase must have a video recording or link to a live demo (ideally both) and the code needs to be open source and accessible on Github or a similar platform."
+          ],
+          "extra_points": [],
+          "resources": [
+            {
+              "title": "Permissioned Registry docs",
+              "url": "https://docs.ens.domains/ensv2/permissioned-registry"
+            },
+            {
+              "title": "Permissioned Resolver docs",
+              "url": "https://docs.ens.domains/ensv2/permissioned-resolver"
+            },
+            {
+              "title": "Enhanced Access Control docs",
+              "url": "https://docs.ens.domains/ensv2/enhanced-access-control"
+            },
+            {
+              "title": "Guide for Contract Developers",
+              "url": "https://docs.ens.domains/ensv2/tutorial-contract-developers"
+            }
+          ]
+        },
+        {
+          "name": "🔗 Best Integration of ENSv2 into an Existing Project",
+          "amount": "$500",
+          "amount_usd": 500,
+          "continuity_only": true,
+          "continuity_url": "https://x.com/ETHGlobal/status/2056399209767866682",
+          "payout_note": null,
+          "places": [],
+          "description_markdown": "**🆕 This prize is only available to Continuity Track participants →**\n\nENSv2 is only live on Sepolia for now, so this track is about getting a head start: explore how ENSv2's feature set — the new registry hierarchy, Enhanced Access Control, Permissioned Resolvers, record and namespace aliasing — can plug into an existing protocol or project to improve the user experience or unlock entirely new use cases. Take a project you already know, yours or an open one, and integrate it against ENSv2 on its testnet deployment. This track pairs well with AI agent identity too — consider giving agents their own namespace and delegated permissions within your integration.",
+          "qualification": [
+            "Integration must use ENSv2 on Sepolia and target an existing project's testnet deployment. It should be clear how ENSv2 improves the project, not just a cosmetic add-on. Your demo must be functional and not just include hard-coded values. Upon submission, your project showcase must have a video recording or link to a live demo (ideally both) and the code needs to be open source and accessible on Github or a similar platform."
+          ],
+          "extra_points": [],
+          "resources": [
+            {
+              "title": "Guide for App Developers",
+              "url": "https://docs.ens.domains/ensv2/tutorial-app-developers"
+            }
+          ]
+        }
+      ],
+      "resources": [
+        {
+          "title": "ENSv2 Docs",
+          "url": "https://docs.ens.domains/ensv2/overview"
+        },
+        {
+          "title": "Building with AI",
+          "url": "https://docs.ens.domains/building-with-ai/"
+        },
+        {
+          "title": "Agent-native CLI",
+          "url": "https://github.com/ensdomains/ens-cli"
+        },
+        {
+          "title": "AI Agent Registry ENS Name Verification",
+          "url": "https://docs.ens.domains/ensip/25/"
+        },
+        {
+          "title": "Agent Text Records",
+          "url": "https://docs.ens.domains/ensip/26/"
+        }
+      ],
+      "jobs": [],
+      "url": "https://ethglobal.com/events/ethonline2026/prizes/ens"
+    },
+    {
+      "slug": "uniswap-foundation",
+      "name": "Uniswap Foundation",
+      "pool": "$5,000",
+      "pool_usd": 5000,
+      "logo": "https://cdn.ethglobal.com/organizations/026zc/square-logo/default.png",
+      "website": "https://www.uniswapfoundation.org/build",
+      "twitter": "https://x.com/UniswapFND",
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/uniswap-foundation",
+      "about": "The Uniswap Foundation works to advance DeFi by providing critical support for protocol innovation, developer success, and governance empowerment. Over the last year, Foundation initiatives have driven the growth and development of Unichain, Uniswap v4, and the industry-leading work of more than 100 grantees.",
+      "coming_soon": false,
+      "prizes": [
+        {
+          "name": "🦄 Best Uniswap Stack Contribution",
+          "amount": "$3,000",
+          "amount_usd": 3000,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": "Up to 3 teams will receive $1,000",
+          "places": [],
+          "description_markdown": "Build on or integrate any part of the Uniswap stack, including the Uniswap API, the Uniswap AMM (v2, v3, or v4), CCA, or any other Uniswap protocol. This also includes new v4 hooks, extensions or improvements to official Uniswap repositories, and tooling or solutions built for the broader ecosystem.",
+          "qualification": [
+            "A public GitHub repository with open-source code, a FEEDBACK.md file, and a completed submission to the Uniswap Developer Feedback Form (https://developers.uniswap.org/hackathon-feedback) that includes the link to your FEEDBACK.md file.",
+            "Submissions without it will be reviewed and audited before winners are finalized. Make sure your README clearly points to the relevant contracts and lines of code so we can verify your integration."
+          ],
+          "extra_points": [],
+          "resources": []
+        },
+        {
+          "name": "🦄 Best Uniswap Stack Contribution",
+          "amount": "$2,000",
+          "amount_usd": 2000,
+          "continuity_only": true,
+          "continuity_url": "https://x.com/ETHGlobal/status/2056399209767866682",
+          "payout_note": null,
+          "places": [
+            {
+              "medal": "🥇",
+              "place": "1st place",
+              "amount": "$1,000"
+            },
+            {
+              "medal": "🥈",
+              "place": "2nd place",
+              "amount": "$1,000"
+            }
+          ],
+          "description_markdown": "**🆕 This prize is only available to Continuity Track participants →**\n\nBuild on or integrate any part of the Uniswap stack, including the Uniswap API, the Uniswap AMM (v2, v3, or v4), CCA, or any other Uniswap protocol. This also includes new v4 hooks, extensions or improvements to official Uniswap repositories, and tooling or solutions built for the broader ecosystem.",
+          "qualification": [
+            "A public GitHub repository with open-source code, a FEEDBACK.md file, and a completed submission to the Uniswap Developer Feedback Form (https://developers.uniswap.org/hackathon-feedback) that includes the link to your FEEDBACK.md file.",
+            "Submissions without it will be reviewed and audited before winners are finalized. Make sure your README clearly points to the relevant contracts and lines of code so we can verify your integration."
+          ],
+          "extra_points": [],
+          "resources": []
+        }
+      ],
+      "resources": [
+        {
+          "title": "Uniswap Docs",
+          "url": "https://developers.uniswap.org/docs?utm_medium=eco&utm_source=platform&utm_campaign=20260904-ethglobal_online&utm_content=callout&utm_term=self-serve"
+        },
+        {
+          "title": "Uniswap Developer Platform",
+          "url": "https://developers.uniswap.org/dashboard?utm_medium=eco&utm_source=platform&utm_campaign=20260904-ethglobal_online&utm_content=callout&utm_term=self-serve"
+        },
+        {
+          "title": "Uniswap Developer Support",
+          "url": "https://developers.uniswap.org/docs?form=help&utm_medium=eco&utm_source=platform&utm_campaign=20260904-ethglobal_online&utm_content=callout&utm_term=self-serve"
+        },
+        {
+          "title": "Uniswap Hackathon Feedback",
+          "url": "https://developers.uniswap.org/hackathon-feedback?utm_medium=eco&utm_source=platform&utm_campaign=20260904-ethglobal_online&utm_content=callout&utm_term=self-serve"
+        },
+        {
+          "title": "Uniswap AI",
+          "url": "https://github.com/Uniswap/uniswap-ai"
+        }
+      ],
+      "jobs": [],
+      "url": "https://ethglobal.com/events/ethonline2026/prizes/uniswap-foundation"
+    },
+    {
+      "slug": "ledger",
+      "name": "Ledger",
+      "pool": "$5,000",
+      "pool_usd": 5000,
+      "logo": "https://cdn.ethglobal.com/organizations/q7a12/square-logo/default.png",
+      "website": "https://ledger.com",
+      "twitter": "https://x.com/Ledger",
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/ledger",
+      "about": "",
+      "coming_soon": true,
+      "prizes": [],
+      "resources": [],
+      "jobs": [
+        {
+          "title": "Software Engineer - Backend Scala",
+          "company": "Ledger",
+          "url": "https://ethglobal.com/jobs/software-engineer-backend-scala-rxvd9"
+        }
+      ],
+      "url": "https://ethglobal.com/events/ethonline2026/prizes/ledger"
+    },
+    {
+      "slug": "privy",
+      "name": "Privy",
+      "pool": "$5,000",
+      "pool_usd": 5000,
+      "logo": "https://cdn.ethglobal.com/organizations/ijybm/square-logo/default.png",
+      "website": "https://www.privy.io/",
+      "twitter": "https://x.com/privy_io",
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/privy",
+      "about": "Privy helps developers build secure, seamless onchain experiences. Use Privy’s SDKs and APIs to add flexible authentication, create embedded self-custodial wallets, and power wallet interactions across web and mobile, without requiring users to manage seed phrases.",
+      "coming_soon": false,
+      "prizes": [
+        {
+          "name": "🏢 Best B2B financial product",
+          "amount": "$2,500",
+          "amount_usd": 2500,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [],
+          "description_markdown": "Build a product that helps businesses manage digital assets and financial operations with Privy. Projects might include treasury platforms, business accounts, payroll systems, spend management tools, payment operations, or shared organization wallets.\n\nStrong submissions will use Privy to create secure business workflows with features such as organization wallets, policies, team permissions, quorum approvals, intents, automated transactions, or event-driven operations.",
+          "qualification": [
+            "Integrate Privy as a core part of the product",
+            "Create or use at least one Privy wallet",
+            "Demonstrate a business or organization use case",
+            "Implement at least one functional B2B workflow, such as a payment, approval, treasury operation, or wallet administration flow",
+            "Use at least one Privy control, such as policies, signers, key quorums, or intents",
+            "Provide a working demo and access to the project’s source code",
+            "Clearly explain how Privy enables the product"
+          ],
+          "extra_points": [],
+          "resources": []
+        },
+        {
+          "name": "💸 Best financial flow",
+          "amount": "$2,500",
+          "amount_usd": 2500,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [],
+          "description_markdown": "Build a seamless experience for funding, moving, trading, growing, or spending digital assets with Privy. Projects might include payments, remittances, cross-chain transfers, stablecoin conversions, swaps, savings experiences, payouts, or card-like spending products.\n\nStrong submissions will use Privy wallet actions or funding tools to simplify a real financial flow and hide unnecessary onchain complexity from the user.",
+          "qualification": [
+            "Integrate Privy as a core part of the product",
+            "Create or use at least one Privy wallet",
+            "Complete at least one functional financial flow using a generally available Privy feature",
+            "Eligible flows include transfers, bridging, stablecoin conversions, swaps, self-service Earn vaults, onramps, or other supported wallet actions",
+            "Provide a working demo and access to the project’s source code",
+            "Clearly explain how Privy improves the user experience",
+            "Features requiring commercial or guided onboarding may be mocked, but they do not count as the required functional Privy integration",
+            "Note: Privy Cards currently requires guided Privy and Bridge onboarding, so we would allow a mocked card experience but require another live Privy flow for eligibility."
+          ],
+          "extra_points": [],
+          "resources": []
+        }
+      ],
+      "resources": [
+        {
+          "title": "Privy documentation",
+          "url": "https://docs.privy.io/"
+        },
+        {
+          "title": "Privy quickstart",
+          "url": "https://docs.privy.io/basics/get-started/quickstart"
+        },
+        {
+          "title": "Privy GitHub",
+          "url": "https://github.com/privy-io"
+        }
+      ],
+      "jobs": [],
+      "url": "https://ethglobal.com/events/ethonline2026/prizes/privy"
+    },
+    {
+      "slug": "bazantic",
+      "name": "Bazantic",
+      "pool": "$3,000",
+      "pool_usd": 3000,
+      "logo": "https://cdn.ethglobal.com/organizations/qf93t/square-logo/default.png",
+      "website": "https://bazantic.com",
+      "twitter": "https://x.com/bazantic",
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/bazantic",
+      "about": "Bazantic simplifies AI development, so developers build around outcomes, not integrations. With one integration, API providers turn their APIs into services agents can understand, use, and pay for. Developers pre-wire services into reusable building blocks to accelerate AI product development. Bazantic allows a developer to:",
+      "coming_soon": false,
+      "prizes": [
+        {
+          "name": "🤖 Help an Agent Use Your Hackathon Project",
+          "amount": "$1,000",
+          "amount_usd": 1000,
+          "continuity_only": true,
+          "continuity_url": "https://x.com/ETHGlobal/status/2056399209767866682",
+          "payout_note": "Up to 2 teams will receive $500",
+          "places": [],
+          "description_markdown": "**🆕 This prize is only available to Continuity Track participants →**\n\nCan an agent use your project without you there to explain it? Show us it can be done using Bazantic built MCP server and recipe.\n\nGive an agent clear, reusable guidance about when an API service you have built is useful, what it needs, and how to use the result. Then prove the guidance works. Give the same task to the same model twice: first with only the raw API information, then with your Recipe generated at bazantic.com Show a meaningful and repeatable improvement by using the Recipe.\n\nFor example, if you have built an application that tracks DeFi positions and takes actions based on them, you likely have an internal API that returns the data to you. Integrate this API service into Bazantic and build a recipe that allows an agent to on demand stack rank the best open positions.",
+          "qualification": [
+            "To qualify",
+            "Create an account on bazantic.com",
+            "Create an x402/MPP Gateway in Bazantic for your project.",
+            "Create a Recipe that explains when, why, and how to use your service.",
+            "Use the same prompt, model, settings, and API access in both tests.",
+            "Make the Recipe the only material difference between the tests.",
+            "Show both results and identify the improvement by sharing the inputs and results in your submission",
+            "Record a video walking through the difference in outcomes",
+            "Provide the bazantic account username - email or GitHub handle depending on what you use to register so we can attribute your recipe to you."
+          ],
+          "extra_points": [],
+          "resources": []
+        },
+        {
+          "name": "🍳 Best Recipe that uses EthGlobal Hackathon Sponsor APIs",
+          "amount": "$1,000",
+          "amount_usd": 1000,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [
+            {
+              "medal": "🥇",
+              "place": "1st place",
+              "amount": "$500"
+            },
+            {
+              "medal": "🥈",
+              "place": "2nd place",
+              "amount": "$300"
+            },
+            {
+              "medal": "🥉",
+              "place": "3rd place",
+              "amount": "$200"
+            }
+          ],
+          "description_markdown": "Real jobs rarely fit inside one API call. Create a set recipes that use multiple APIs that your project utilizes. Create a repeatable workflow that moves from one service to the next and completes a task neither could solve alone. Show why each service matters, how information moves between them, and what the complete workflow accomplishes.\n\nFor example, the integrate the Uniswap API and the 1Inch Trace API into Bazantic - then use together a recipe where the Uniswap API requests a GET /swap and then the transactions returned are fed into the 1Inch Trace API to get the logs for those transactions using the GET /transaction trace by block number and transaction hash.",
+          "qualification": [
+            "Create an account on bazantic.com",
+            "Create an x402/MPP Gateway in Bazantic for your project.",
+            "Use at least one other service already available through Bazantic OR is available from a sponsor of the EthGlobal Online Hackathon",
+            "Create a recipe that uses both services in one working flow.",
+            "Make the final result depend meaningfully on both services.",
+            "Demonstrate the completed task from start to finish in a screen recording that is part of your submission.",
+            "Provide the bazantic account username in your submission - email or GitHub handle depending on what you use to register so we can attribute your recipe to you."
+          ],
+          "extra_points": [],
+          "resources": []
+        },
+        {
+          "name": "👨‍🍳 Agentify a new API",
+          "amount": "$1,000",
+          "amount_usd": 1000,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": null,
+          "places": [
+            {
+              "medal": "🥇",
+              "place": "1st place",
+              "amount": "$500"
+            },
+            {
+              "medal": "🥈",
+              "place": "2nd place",
+              "amount": "$300"
+            },
+            {
+              "medal": "🥉",
+              "place": "3rd place",
+              "amount": "$200"
+            }
+          ],
+          "description_markdown": "Add a new API into Bazantic and create a recipe\n\nAgents can solve only the problems their available services support. Bring a useful new API service into Bazantic, connect it with your hackathon project, and demonstrate something agents could not do before. The strongest submissions will add a new API service to Bazantic and bring it into a recipe that other builders can reuse, not a one-off connection created only for the demo.\n\nAgents can solve only the problems their available services support. Bring a useful new API service into Bazantic, connect it with your hackathon project, and demonstrate something agents could not do before. The strongest submissions will add a new API service to Bazantic and bring it into a recipe that other builders can reuse, not a one-off connection created only for the demo.\n\nFor example, say you are getting into roasting your own coffee. You could integrate an API from a financial services firm that is not currently available on Bazantic to pull the current prices of coffee futures on a recurring basis. That information could be compared to pulling data from certain online whole sale importers, to create a coffee purchase tracker that scans these marketplaces for green commodity coffee beans, looking for deals that are underpriced relative to the futures market, alerting you when to buy.",
+          "qualification": [
+            "Create an account on bazantic.com",
+            "Create an x402/MPP Gateway in Bazantic for your project.",
+            "Add a service that was not available through Bazantic AND is not an API available via the the other sponsors when the event began.",
+            "Create a working Gateway for that service on Bazantic.",
+            "Create a recipe that uses both services in one working flow within your hackathon project",
+            "Explain how other builders and agents could use the new service by demonstrating what the recipe does in a screen recording.",
+            "Provide the bazantic account username in your submission - email or GitHub handle depending on what you use to register so we can attribute your recipe to you."
+          ],
+          "extra_points": [],
+          "resources": []
+        }
+      ],
+      "resources": [],
+      "jobs": [],
+      "url": "https://ethglobal.com/events/ethonline2026/prizes/bazantic"
+    },
+    {
+      "slug": "chainlink",
+      "name": "Chainlink",
+      "pool": "$2,500",
+      "pool_usd": 2500,
+      "logo": "https://cdn.ethglobal.com/organizations/f8ku2/square-logo/default.png",
+      "website": "https://chain.link/",
+      "twitter": "https://x.com/chainlink",
+      "page_url": "https://ethglobal.com/events/ethonline2026/prizes/chainlink",
+      "about": "The industry standard oracle network for powering trust-minimized applications across Web2 and Web3 ⬡",
+      "coming_soon": false,
+      "prizes": [
+        {
+          "name": "🔗 Best Confidential Workflow",
+          "amount": "$2,000",
+          "amount_usd": 2000,
+          "continuity_only": false,
+          "continuity_url": null,
+          "payout_note": "Up to 2 teams will receive $1,000",
+          "places": [],
+          "description_markdown": "Build your Confidential Workflow with CRE!\n\nAs part of Chainlink's Privacy Standard, confidential workflows are now available within the Chainlink Runtime Environment (CRE). This enables developers and institutions to build advanced privacy-preserving applications without sacrificing interoperability or integration with existing systems.",
+          "qualification": [
+            "Coming soon, please come back closer to the hackathon start. For any questions in the meantime please reach out on Discord"
+          ],
+          "extra_points": [],
+          "resources": [
+            {
+              "title": "AI Smart Contract Audit Firewall Template",
+              "url": "https://docs.chain.link/cre-templates/ai-audit-firewall"
+            },
+            {
+              "title": "Automated Liquidation Protection Template",
+              "url": "https://docs.chain.link/cre-templates/automated-liquidation-protection"
+            },
+            {
+              "title": "Hello Confidential Workflow",
+              "url": "https://docs.chain.link/cre-templates/hello-confidential-workflows"
+            }
+          ]
+        },
+        {
+          "name": "🏆 Best Chainlink-Powered Upgrade",
+          "amount": "$500",
+          "amount_usd": 500,
+          "continuity_only": true,
+          "continuity_url": "https://x.com/ETHGlobal/status/2056399209767866682",
+          "payout_note": null,
+          "places": [],
+          "description_markdown": "**🆕 This prize is only available to Continuity Track participants →**\n\nBuild a meaningful upgrade to an existing project using Chainlink technology!\n\nWe're looking for teams that enhance an existing application, protocol, or infrastructure by integrating Chainlink services to unlock new functionality, improve security, or create a better user experience.\n\nEligible Chainlink technologies include: Chainlink Runtime Environment (CRE) - including Confidential Workflows Price Feeds Data Streams Proof of Reserve (PoR) VRF (Verifiable Random Function)\n\nImportant: Please use CRE instead of Chainlink Functions or Automation. Functions and Automation are being deprecated, and projects requiring this type of functionality should implement it using CRE.",
+          "qualification": [
+            "📍 Requirements:",
+            "✅ Your project should:",
+            "Integrate at least one Chainlink service directly within smart contract logic or onchain workflows.",
+            "The Chainlink integration must contribute to a state change on a blockchain. Simply displaying Chainlink data in a frontend is not sufficient.",
+            "The submission must clearly demonstrate how the Chainlink-powered upgrade improves the existing project."
+          ],
+          "extra_points": [],
+          "resources": []
+        }
+      ],
+      "resources": [],
+      "jobs": [],
+      "url": "https://ethglobal.com/events/ethonline2026/prizes/chainlink"
+    }
+  ],
+  "pages_crawled": 12
+}

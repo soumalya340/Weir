@@ -76,6 +76,13 @@ contract WeirV2FutarchyProposalTest is Test {
         vm.deal(noBeliever, 10 ether);
     }
 
+
+    function _deployAndWireProposal() internal returns (WeirV2FutarchyProposal proposal) {
+        proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        vm.prank(hook);
+        vault.setFutarchyProposal(address(proposal));
+    }
+
     function test_constructor_revertsOnZeroVault() public {
         vm.expectRevert(WeirV2FutarchyProposal.ZeroAddress.selector);
         new WeirV2FutarchyProposal{value: 0.01 ether}(address(0));
@@ -87,7 +94,7 @@ contract WeirV2FutarchyProposalTest is Test {
     }
 
     function test_constructor_deploysMarketsAndWiresVault() public {
-        WeirV2FutarchyProposal proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        WeirV2FutarchyProposal proposal = _deployAndWireProposal();
 
         assertEq(vault.futarchyProposal(), address(proposal));
         assertTrue(address(proposal.passMarket()) != address(0));
@@ -97,21 +104,23 @@ contract WeirV2FutarchyProposalTest is Test {
     }
 
     function test_constructor_revertsIfVaultAlreadyHasProposal() public {
-        new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        _deployAndWireProposal();
 
+        WeirV2FutarchyProposal second = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        vm.prank(hook);
         vm.expectRevert(WeirV2StakingReward.FutarchyProposalAlreadySet.selector);
-        new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        vault.setFutarchyProposal(address(second));
     }
 
     function test_finalize_revertsBeforeTradingWindowCloses() public {
-        WeirV2FutarchyProposal proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        WeirV2FutarchyProposal proposal = _deployAndWireProposal();
 
         vm.expectRevert(WeirV2FutarchyProposal.TradingStillOpen.selector);
         proposal.finalize();
     }
 
     function test_finalize_revertsIfCalledTwice() public {
-        WeirV2FutarchyProposal proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        WeirV2FutarchyProposal proposal = _deployAndWireProposal();
         vm.warp(proposal.closesAt());
         proposal.finalize();
 
@@ -123,7 +132,7 @@ contract WeirV2FutarchyProposalTest is Test {
     /// trading at all neither price is strictly greater and the proposal
     /// must fail closed rather than unlock early exit by default.
     function test_finalize_noTrading_failsClosed() public {
-        WeirV2FutarchyProposal proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        WeirV2FutarchyProposal proposal = _deployAndWireProposal();
         vm.warp(proposal.closesAt());
 
         proposal.finalize();
@@ -134,13 +143,14 @@ contract WeirV2FutarchyProposalTest is Test {
     }
 
     function test_finalize_passMarketPricedHigher_unlocksEarlyExit() public {
-        WeirV2FutarchyProposal proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        WeirV2FutarchyProposal proposal = _deployAndWireProposal();
         BinaryMarket passMarket = proposal.passMarket();
 
         // Buy YES on the pass market only, pushing its implied YES price
         // above the untouched fail market's 50/50 price.
+        uint256 yes = passMarket.OUTCOME_YES();
         vm.prank(yesBeliever);
-        passMarket.swapIn{value: 0.1 ether}(passMarket.OUTCOME_YES(), 1e16, 0.1 ether);
+        passMarket.swapIn{value: 0.1 ether}(yes, 1e16, 0.1 ether);
 
         vm.warp(proposal.closesAt());
         proposal.finalize();
@@ -153,11 +163,12 @@ contract WeirV2FutarchyProposalTest is Test {
     }
 
     function test_finalize_failMarketPricedHigher_leavesVaultLocked() public {
-        WeirV2FutarchyProposal proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        WeirV2FutarchyProposal proposal = _deployAndWireProposal();
         BinaryMarket failMarket = proposal.failMarket();
 
+        uint256 yes = failMarket.OUTCOME_YES();
         vm.prank(noBeliever);
-        failMarket.swapIn{value: 0.1 ether}(failMarket.OUTCOME_YES(), 1e16, 0.1 ether);
+        failMarket.swapIn{value: 0.1 ether}(yes, 1e16, 0.1 ether);
 
         vm.warp(proposal.closesAt());
         proposal.finalize();
@@ -167,7 +178,7 @@ contract WeirV2FutarchyProposalTest is Test {
     }
 
     function test_returnBond_revertsBeforeTradingCloses() public {
-        WeirV2FutarchyProposal proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        WeirV2FutarchyProposal proposal = _deployAndWireProposal();
 
         vm.expectRevert(WeirV2FutarchyProposal.TradingStillOpen.selector);
         proposal.returnBond();
@@ -175,7 +186,7 @@ contract WeirV2FutarchyProposalTest is Test {
 
     function test_returnBond_paysProposerOnceAfterClose() public {
         vm.prank(proposerAddr);
-        WeirV2FutarchyProposal proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        WeirV2FutarchyProposal proposal = _deployAndWireProposal();
 
         vm.warp(proposal.closesAt());
         uint256 balanceBefore = proposerAddr.balance;
@@ -187,7 +198,7 @@ contract WeirV2FutarchyProposalTest is Test {
     }
 
     function test_burnAndExit_worksEndToEndAfterPassResolution() public {
-        WeirV2FutarchyProposal proposal = new WeirV2FutarchyProposal{value: 0.01 ether}(address(vault));
+        WeirV2FutarchyProposal proposal = _deployAndWireProposal();
         BinaryMarket passMarket = proposal.passMarket();
 
         memecoin.mint(yesBeliever, 100e18);
@@ -196,8 +207,9 @@ contract WeirV2FutarchyProposalTest is Test {
         vm.prank(yesBeliever);
         vault.stake(100e18);
 
+        uint256 yes = passMarket.OUTCOME_YES();
         vm.prank(yesBeliever);
-        passMarket.swapIn{value: 0.1 ether}(passMarket.OUTCOME_YES(), 1e16, 0.1 ether);
+        passMarket.swapIn{value: 0.1 ether}(yes, 1e16, 0.1 ether);
 
         vm.warp(proposal.closesAt());
         proposal.finalize();

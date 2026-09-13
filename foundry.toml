@@ -3,5 +3,10 @@ src = "src"
 out = "out"
 libs = ["lib"]
 via_ir = true
+fs_permissions = [
+    { access = "read", path = "./src" },
+    { access = "read", path = "./deps" },
+    { access = "read", path = "./.gitignore" },
+]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

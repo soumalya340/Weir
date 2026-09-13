@@ -251,20 +251,24 @@ contract WeirV2StakingRewardNativeTest is Test {
 
     function test_setFutarchyProposal_onlyOnce() public {
         address proposal = makeAddr("proposal");
+        vm.prank(hook);
         vault.setFutarchyProposal(proposal);
         assertEq(vault.futarchyProposal(), proposal);
 
         vm.expectRevert(WeirV2StakingReward.FutarchyProposalAlreadySet.selector);
+        vm.prank(hook);
         vault.setFutarchyProposal(makeAddr("other"));
     }
 
     function test_setFutarchyProposal_revertsOnZeroAddress() public {
         vm.expectRevert(WeirV2StakingReward.ZeroAddress.selector);
+        vm.prank(hook);
         vault.setFutarchyProposal(address(0));
     }
 
     function test_unlockEarlyExit_onlyFutarchyProposal() public {
         address proposal = makeAddr("proposal");
+        vm.prank(hook);
         vault.setFutarchyProposal(proposal);
 
         vm.expectRevert(WeirV2StakingReward.NotFutarchyProposal.selector);
@@ -292,6 +296,7 @@ contract WeirV2StakingRewardNativeTest is Test {
         vault.notifyReward{value: 5 ether}(5 ether);
 
         address proposal = makeAddr("proposal");
+        vm.prank(hook);
         vault.setFutarchyProposal(proposal);
         vm.prank(proposal);
         vault.unlockEarlyExit();
@@ -315,6 +320,7 @@ contract WeirV2StakingRewardNativeTest is Test {
         vault.stake(100e18);
 
         address proposal = makeAddr("proposal");
+        vm.prank(hook);
         vault.setFutarchyProposal(proposal);
         vm.prank(proposal);
         vault.unlockEarlyExit();
@@ -328,6 +334,7 @@ contract WeirV2StakingRewardNativeTest is Test {
         vm.prank(alice);
         vault.stake(100e18);
         address proposal = makeAddr("proposal");
+        vm.prank(hook);
         vault.setFutarchyProposal(proposal);
         vm.prank(proposal);
         vault.unlockEarlyExit();
@@ -399,6 +406,7 @@ contract WeirV2StakingRewardErc20QuoteTest is Test {
         vault.notifyReward(10e18);
 
         address proposal = makeAddr("proposal");
+        vm.prank(hook);
         vault.setFutarchyProposal(proposal);
         vm.prank(proposal);
         vault.unlockEarlyExit();
