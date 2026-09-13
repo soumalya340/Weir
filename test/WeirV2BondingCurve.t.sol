@@ -96,8 +96,7 @@ contract WeirV2BondingCurveTest is Test {
 
     // 2.1: plain initialize leaves economics untouched.
     function test_initialize_plainUnchanged() public {
-        (WeirV2BondingCurve curve, WeirV2LauncherToken token) =
-            _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
+        (WeirV2BondingCurve curve, WeirV2LauncherToken token) = _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
         curve.initialize(address(token));
 
         assertEq(curve.committedTokens(), 0);
@@ -109,8 +108,7 @@ contract WeirV2BondingCurveTest is Test {
 
     // 2.2: campaign initialize partitions the tranche off the public curve.
     function test_initialize_withTranche() public {
-        (WeirV2BondingCurve curve, WeirV2LauncherToken token) =
-            _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
+        (WeirV2BondingCurve curve, WeirV2LauncherToken token) = _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
         uint256 committed = SUPPLY / 4;
         uint256 opensAt = block.timestamp + 2 days;
         curve.initialize(address(token), committed, opensAt);
@@ -125,16 +123,14 @@ contract WeirV2BondingCurveTest is Test {
 
     // 2.3: a tranche at or above supply reverts.
     function test_initialize_committedTooLarge() public {
-        (WeirV2BondingCurve curve, WeirV2LauncherToken token) =
-            _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
+        (WeirV2BondingCurve curve, WeirV2LauncherToken token) = _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
         vm.expectRevert(WeirV2BondingCurve.CommittedTokensTooLarge.selector);
         curve.initialize(address(token), SUPPLY, block.timestamp + 2 days);
     }
 
     // 2.4: a tranche that rounds the reserve away reverts.
     function test_initialize_trancheLeavesReservedZero() public {
-        (WeirV2BondingCurve curve, WeirV2LauncherToken token) =
-            _deploy(1000, PHANTOM, THRESHOLD, 0, 0, 0, false);
+        (WeirV2BondingCurve curve, WeirV2LauncherToken token) = _deploy(1000, PHANTOM, THRESHOLD, 0, 0, 0, false);
         // publicSupply = 1 wei -> reserved rounds to 0.
         vm.expectRevert(WeirV2BondingCurve.InvalidLaunchEconomics.selector);
         curve.initialize(address(token), 999, block.timestamp + 2 days);
@@ -142,8 +138,7 @@ contract WeirV2BondingCurveTest is Test {
 
     // 2.5: buys are gated on the open time, then succeed exactly at it.
     function test_buy_beforeOpenRevertsAtOpenSucceeds() public {
-        (WeirV2BondingCurve curve, WeirV2LauncherToken token) =
-            _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
+        (WeirV2BondingCurve curve, WeirV2LauncherToken token) = _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
         uint256 opensAt = block.timestamp + 1 days;
         curve.initialize(address(token), SUPPLY / 10, opensAt);
 
@@ -160,8 +155,7 @@ contract WeirV2BondingCurveTest is Test {
 
     // 2.6: sells are gated on the open time too.
     function test_sell_beforeOpenReverts() public {
-        (WeirV2BondingCurve curve, WeirV2LauncherToken token) =
-            _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
+        (WeirV2BondingCurve curve, WeirV2LauncherToken token) = _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
         uint256 opensAt = block.timestamp + 1 days;
         curve.initialize(address(token), 0, opensAt);
 
@@ -172,8 +166,7 @@ contract WeirV2BondingCurveTest is Test {
 
     // 2.7: snipe tax peaks before the open (no underflow) and decays from it.
     function test_snipeTax_beforeOpenPeakAndDecay() public {
-        (WeirV2BondingCurve curve, WeirV2LauncherToken token) =
-            _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 1000, 100, false);
+        (WeirV2BondingCurve curve, WeirV2LauncherToken token) = _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 1000, 100, false);
         uint256 opensAt = block.timestamp + 1 days;
         curve.initialize(address(token), 0, opensAt);
 
@@ -236,8 +229,7 @@ contract WeirV2BondingCurveTest is Test {
         curve.releaseCommittedTokens(address(0));
 
         // Not ready on a fresh curve.
-        (WeirV2BondingCurve fresh, WeirV2LauncherToken freshToken) =
-            _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
+        (WeirV2BondingCurve fresh, WeirV2LauncherToken freshToken) = _deploy(SUPPLY, PHANTOM, THRESHOLD, 0, 0, 0, false);
         fresh.initialize(address(freshToken), SUPPLY / 10, 0);
         vm.expectRevert(WeirV2BondingCurve.NotReadyToGraduate.selector);
         fresh.releaseCommittedTokens(stranger);
@@ -269,8 +261,7 @@ contract WeirV2BondingCurveTest is Test {
     // never lock tranche tokens.
     function test_internalBuybackNeverEatsTranche() public {
         uint256 committed = SUPPLY / 10;
-        (WeirV2BondingCurve curve, WeirV2LauncherToken token) =
-            _deploy(SUPPLY, PHANTOM, THRESHOLD, 100, 0, 0, true);
+        (WeirV2BondingCurve curve, WeirV2LauncherToken token) = _deploy(SUPPLY, PHANTOM, THRESHOLD, 100, 0, 0, true);
         curve.initialize(address(token), committed, 0);
 
         _buy(curve, 1000e6);

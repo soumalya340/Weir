@@ -76,7 +76,6 @@ contract WeirV2FutarchyProposalTest is Test {
         vm.deal(noBeliever, 10 ether);
     }
 
-
     function _deployAndWireProposal() internal returns (WeirV2FutarchyProposal proposal) {
         return _deployAndWireProposal(address(this));
     }

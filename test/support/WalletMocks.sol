@@ -28,8 +28,13 @@ contract MockSmartWallet {
 }
 
 interface WeirV2CommitmentRegistryLike {
-    function commit(address token, uint256 pledgeQuote, bool useAqua, bytes calldata signature, bytes32[] calldata proof)
-        external;
+    function commit(
+        address token,
+        uint256 pledgeQuote,
+        bool useAqua,
+        bytes calldata signature,
+        bytes32[] calldata proof
+    ) external;
     function claimBond(address token) external returns (uint256 amount);
 }
 
@@ -68,8 +73,7 @@ contract MockReentrantQuote is ERC20 {
         if (!attempted && from != address(0)) {
             if (forwarder != address(0)) {
                 attempted = true;
-                (bool ok,) =
-                    forwarder.call(abi.encodeWithSignature("reenter(address)", token));
+                (bool ok,) = forwarder.call(abi.encodeWithSignature("reenter(address)", token));
                 innerReverted = !ok;
             } else if (registry != address(0)) {
                 attempted = true;

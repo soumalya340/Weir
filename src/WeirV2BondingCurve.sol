@@ -5,7 +5,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {WeirV2BondingCurveMath} from "./libraries/WeirV2BondingCurveMath.sol"; 
+import {WeirV2BondingCurveMath} from "./libraries/WeirV2BondingCurveMath.sol";
 import {WeirV2BuybackVault} from "./WeirV2BuybackVault.sol";
 import {WeirV2LauncherToken} from "./WeirV2LauncherToken.sol";
 import {FeePolicySnapshot, IWeirV2FeeEscrow, IWeirV2FeePolicy} from "./interfaces/ILaunchpadV2.sol";

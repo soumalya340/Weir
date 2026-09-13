@@ -80,8 +80,7 @@ contract WeirV2FactoryFixture is Test {
         pm = new PoolManager(owner);
         permit2 = IAllowanceTransfer(address(new MockPermit2Placeholder()));
         weth = new MockWETH9();
-        PositionDescriptor descriptor =
-            new PositionDescriptor(IPoolManager(address(pm)), address(weth), bytes32("ETH"));
+        PositionDescriptor descriptor = new PositionDescriptor(IPoolManager(address(pm)), address(weth), bytes32("ETH"));
         posm = new PositionManager(
             IPoolManager(address(pm)), IAllowanceTransfer(address(permit2)), 100_000, descriptor, weth
         );
@@ -102,7 +101,8 @@ contract WeirV2FactoryFixture is Test {
             0
         );
         launchDeployer = new WeirV2LaunchDeployer(address(factory));
-        graduationExecutor = new WeirV2GraduationExecutor(posm, IAllowanceTransfer(address(permit2)), locker, address(factory));
+        graduationExecutor =
+            new WeirV2GraduationExecutor(posm, IAllowanceTransfer(address(permit2)), locker, address(factory));
         stakingDeployer = new WeirV2StakingVaultDeployer(address(hook));
 
         hook.setFactory(address(factory));
@@ -136,9 +136,8 @@ contract WeirV2FactoryFixture is Test {
     }
 
     function _mineHook(address hookOwner) internal returns (WeirV2MemeHook mined) {
-        uint160 flags = uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
-        );
+        uint160 flags =
+            uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
         bytes memory args = abi.encode(IPoolManager(address(pm)), escrow, hookOwner, hookOwner);
         (, bytes32 salt) = HookMiner.find(address(this), flags, type(WeirV2MemeHook).creationCode, args);
         mined = new WeirV2MemeHook{salt: salt}(IPoolManager(address(pm)), escrow, hookOwner, hookOwner);
@@ -159,11 +158,7 @@ contract WeirV2FactoryFixture is Test {
         });
     }
 
-    function _campaign(uint256 opensAt)
-        internal
-        view
-        returns (WeirV2CommitmentRegistry.CampaignParams memory)
-    {
+    function _campaign(uint256 opensAt) internal view returns (WeirV2CommitmentRegistry.CampaignParams memory) {
         return WeirV2CommitmentRegistry.CampaignParams({
             discountBps: DISCOUNT,
             targetQuote: TARGET_Q,
@@ -177,7 +172,9 @@ contract WeirV2FactoryFixture is Test {
     function _launchCampaign(bytes32 salt, uint256 opensAt) internal returns (address token, address curve) {
         address[] memory exemptions = new address[](0);
         vm.prank(creator);
-        (token, curve) = factory.launchTokenWithCampaign(_tokenParams(salt), configId, address(usdc), _campaign(opensAt), exemptions);
+        (token, curve) = factory.launchTokenWithCampaign(
+            _tokenParams(salt), configId, address(usdc), _campaign(opensAt), exemptions
+        );
     }
 }
 
@@ -206,8 +203,7 @@ contract WeirV2LaunchFactoryTest is WeirV2FactoryFixture {
         vm.expectRevert(WeirV2LaunchFactory.CommitmentRegistryMismatch.selector);
         factory2.setCommitmentRegistry(foreign);
 
-        WeirV2CommitmentRegistry registry2 =
-            new WeirV2CommitmentRegistry(address(factory2), ISwapVM(address(router)));
+        WeirV2CommitmentRegistry registry2 = new WeirV2CommitmentRegistry(address(factory2), ISwapVM(address(router)));
         factory2.setCommitmentRegistry(registry2);
         assertEq(address(factory2.commitmentRegistry()), address(registry2));
         vm.expectRevert(WeirV2LaunchFactory.AlreadySet.selector);
@@ -334,8 +330,7 @@ contract WeirV2LaunchFactoryTest is WeirV2FactoryFixture {
     function test_launch_plainUnaffected() public {
         assertEq(address(factory.commitmentRegistry()), address(registry));
         vm.prank(creator);
-        (address token, address curve) =
-            factory.launchToken(_tokenParams(bytes32(uint256(5))), configId, address(usdc));
+        (address token, address curve) = factory.launchToken(_tokenParams(bytes32(uint256(5))), configId, address(usdc));
 
         assertFalse(registry.hasCampaign(token));
         assertEq(WeirV2BondingCurve(curve).committedTokens(), 0);
@@ -353,9 +348,7 @@ contract WeirV2LaunchFactoryTest is WeirV2FactoryFixture {
         WeirV2LaunchFactory.TokenParams memory pinned = _tokenParams(bytes32(uint256(6)));
         pinned.expectedEconomics = before;
         vm.prank(creator);
-        vm.expectRevert(
-            abi.encodeWithSelector(WeirV2LaunchFactory.LaunchEconomicsMismatch.selector, before, afterSlow)
-        );
+        vm.expectRevert(abi.encodeWithSelector(WeirV2LaunchFactory.LaunchEconomicsMismatch.selector, before, afterSlow));
         factory.launchToken(pinned, configId, address(usdc));
 
         // A fresh pin succeeds.

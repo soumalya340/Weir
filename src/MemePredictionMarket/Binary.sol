@@ -31,18 +31,8 @@ contract BinaryMarket is ReentrancyGuard {
     error ExpInputTooLarge();
     error LnNonPositive();
 
-    event SharesPurchased(
-        address indexed buyer,
-        bool isYes,
-        uint256 shares,
-        uint256 cost
-    );
-    event SharesSold(
-        address indexed seller,
-        bool isYes,
-        uint256 shares,
-        uint256 refund
-    );
+    event SharesPurchased(address indexed buyer, bool isYes, uint256 shares, uint256 cost);
+    event SharesSold(address indexed seller, bool isYes, uint256 shares, uint256 refund);
     event MarketResolved(uint256 winningOutcome, uint256 payoutPerShare);
     event MarketCancelled(address indexed by);
     event MarketPaused(address indexed by);
@@ -83,8 +73,9 @@ contract BinaryMarket is ReentrancyGuard {
     uint256 public totalCostBasis;
 
     modifier onlyAdmin() {
-        if (msg.sender != admin && msg.sender != settlementContract)
+        if (msg.sender != admin && msg.sender != settlementContract) {
             revert Unauthorized();
+        }
         _;
     }
 
@@ -104,10 +95,7 @@ contract BinaryMarket is ReentrancyGuard {
         address _admin
     ) {
         require(_initialB > 0, "b=0");
-        require(
-            _settlementContract != address(0) && _admin != address(0),
-            "zero"
-        );
+        require(_settlementContract != address(0) && _admin != address(0), "zero");
         marketId = _marketId;
         question = _question;
         _outcomeNames = outcomeNames_;
@@ -137,10 +125,7 @@ contract BinaryMarket is ReentrancyGuard {
         return (noW * PRECISION) / sum;
     }
 
-    function calculateCost(
-        uint256 _qYes,
-        uint256 _qNo
-    ) public view returns (uint256) {
+    function calculateCost(uint256 _qYes, uint256 _qNo) public view returns (uint256) {
         // Cost proxy: b * ln(yesW + noW) approximated via the product form used
         // by getBuyCost; exposed for ABI parity with the original market.
         uint256 yesW = _qYes + b;
@@ -148,10 +133,7 @@ contract BinaryMarket is ReentrancyGuard {
         return yesW + noW;
     }
 
-    function getBuyCost(
-        uint256 outcome,
-        uint256 shareAmount
-    ) public view returns (uint256) {
+    function getBuyCost(uint256 outcome, uint256 shareAmount) public view returns (uint256) {
         if (shareAmount == 0) return 0;
         uint256 yesW = qYes + b;
         uint256 noW = qNo + b;
@@ -165,10 +147,7 @@ contract BinaryMarket is ReentrancyGuard {
         revert InvalidOutcome();
     }
 
-    function getSellRefund(
-        uint256 outcome,
-        uint256 shareAmount
-    ) public view returns (uint256) {
+    function getSellRefund(uint256 outcome, uint256 shareAmount) public view returns (uint256) {
         if (shareAmount == 0) return 0;
         uint256 yesW = qYes + b;
         uint256 noW = qNo + b;
@@ -183,11 +162,7 @@ contract BinaryMarket is ReentrancyGuard {
         revert InvalidOutcome();
     }
 
-    function swapIn(
-        uint256 outcome,
-        uint256 shareAmount,
-        uint256 maxCost
-    ) external payable nonReentrant whenNotPaused {
+    function swapIn(uint256 outcome, uint256 shareAmount, uint256 maxCost) external payable nonReentrant whenNotPaused {
         if (isResolved || isCancelled) revert MarketIsResolved();
         if (shareAmount == 0) revert ZeroAmount();
         uint256 cost = getBuyCost(outcome, shareAmount);
@@ -212,24 +187,15 @@ contract BinaryMarket is ReentrancyGuard {
 
         uint256 refund = msg.value - cost;
         if (refund != 0) {
-            (bool ok, ) = payable(msg.sender).call{value: refund}("");
+            (bool ok,) = payable(msg.sender).call{value: refund}("");
             if (!ok) revert TransferFailed();
         }
 
-        emit SharesPurchased(
-            msg.sender,
-            outcome == OUTCOME_YES,
-            shareAmount,
-            cost
-        );
+        emit SharesPurchased(msg.sender, outcome == OUTCOME_YES, shareAmount, cost);
         _adaptB();
     }
 
-    function swapOut(
-        uint256 outcome,
-        uint256 shareAmount,
-        uint256 minRefund
-    ) external nonReentrant whenNotPaused {
+    function swapOut(uint256 outcome, uint256 shareAmount, uint256 minRefund) external nonReentrant whenNotPaused {
         if (isResolved || isCancelled) revert MarketIsResolved();
         if (shareAmount == 0) revert ZeroAmount();
         uint256 refund = getSellRefund(outcome, shareAmount);
@@ -251,14 +217,9 @@ contract BinaryMarket is ReentrancyGuard {
 
         if (refund > settlementPool) refund = settlementPool;
         settlementPool -= refund;
-        (bool ok, ) = payable(msg.sender).call{value: refund}("");
+        (bool ok,) = payable(msg.sender).call{value: refund}("");
         if (!ok) revert TransferFailed();
-        emit SharesSold(
-            msg.sender,
-            outcome == OUTCOME_YES,
-            shareAmount,
-            refund
-        );
+        emit SharesSold(msg.sender, outcome == OUTCOME_YES, shareAmount, refund);
         _adaptB();
     }
 
@@ -267,12 +228,8 @@ contract BinaryMarket is ReentrancyGuard {
         if (_winningOutcome > OUTCOME_NO) revert InvalidOutcome();
         isResolved = true;
         winningOutcome = _winningOutcome;
-        uint256 totalWinning = _winningOutcome == OUTCOME_YES
-            ? totalYesShares
-            : totalNoShares;
-        payoutPerShareSnapshot = totalWinning == 0
-            ? 0
-            : settlementPool / totalWinning;
+        uint256 totalWinning = _winningOutcome == OUTCOME_YES ? totalYesShares : totalNoShares;
+        payoutPerShareSnapshot = totalWinning == 0 ? 0 : settlementPool / totalWinning;
         payoutSnapshotted = true;
         emit MarketResolved(_winningOutcome, payoutPerShareSnapshot);
     }
@@ -306,13 +263,11 @@ contract BinaryMarket is ReentrancyGuard {
         if (!isResolved) revert MarketIsResolved();
         if (hasClaimed[msg.sender]) revert Unauthorized();
         hasClaimed[msg.sender] = true;
-        uint256 shares = winningOutcome == OUTCOME_YES
-            ? yesShares[msg.sender]
-            : noShares[msg.sender];
+        uint256 shares = winningOutcome == OUTCOME_YES ? yesShares[msg.sender] : noShares[msg.sender];
         payout = shares * payoutPerShareSnapshot;
         if (payout > settlementPool) payout = settlementPool;
         settlementPool -= payout;
-        (bool ok, ) = payable(msg.sender).call{value: payout}("");
+        (bool ok,) = payable(msg.sender).call{value: payout}("");
         if (!ok) revert TransferFailed();
         emit WinningsClaimed(msg.sender, payout);
     }
@@ -324,16 +279,14 @@ contract BinaryMarket is ReentrancyGuard {
         amount = yesCostBasis[msg.sender] + noCostBasis[msg.sender];
         if (amount > settlementPool) amount = settlementPool;
         settlementPool -= amount;
-        (bool ok, ) = payable(msg.sender).call{value: amount}("");
+        (bool ok,) = payable(msg.sender).call{value: amount}("");
         if (!ok) revert TransferFailed();
         emit RefundClaimed(msg.sender, amount);
     }
 
     function previewClaim(address user) external view returns (uint256) {
         if (!isResolved) return 0;
-        uint256 shares = winningOutcome == OUTCOME_YES
-            ? yesShares[user]
-            : noShares[user];
+        uint256 shares = winningOutcome == OUTCOME_YES ? yesShares[user] : noShares[user];
         return shares * payoutPerShareSnapshot;
     }
 
@@ -355,30 +308,16 @@ contract BinaryMarket is ReentrancyGuard {
             uint256 _winningOutcome
         )
     {
-        return (
-            marketId,
-            question,
-            qYes,
-            qNo,
-            b,
-            settlementPool,
-            isResolved,
-            winningOutcome
-        );
+        return (marketId, question, qYes, qNo, b, settlementPool, isResolved, winningOutcome);
     }
 
-    function userShares(
-        address user,
-        uint256 outcome
-    ) external view returns (uint256) {
+    function userShares(address user, uint256 outcome) external view returns (uint256) {
         if (outcome == OUTCOME_YES) return yesShares[user];
         if (outcome == OUTCOME_NO) return noShares[user];
         revert InvalidOutcome();
     }
 
-    function totalSharesPerOutcome(
-        uint256 outcome
-    ) external view returns (uint256) {
+    function totalSharesPerOutcome(uint256 outcome) external view returns (uint256) {
         if (outcome == OUTCOME_YES) return totalYesShares;
         if (outcome == OUTCOME_NO) return totalNoShares;
         revert InvalidOutcome();
@@ -388,7 +327,7 @@ contract BinaryMarket is ReentrancyGuard {
         uint256 amount = settlementPool;
         settlementPool = 0;
         address to = prizeDistributor == address(0) ? admin : prizeDistributor;
-        (bool ok, ) = payable(to).call{value: amount}("");
+        (bool ok,) = payable(to).call{value: amount}("");
         if (!ok) revert TransferFailed();
     }
 

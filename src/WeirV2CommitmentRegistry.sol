@@ -430,10 +430,13 @@ contract WeirV2CommitmentRegistry is ReentrancyGuard {
      * @param proof Merkle proof of `keccak256(abi.encodePacked(msg.sender))`
      * against the allowlist root; unused in open mode.
      */
-    function commit(address token, uint256 pledgeQuote, bool useAqua, bytes calldata signature, bytes32[] calldata proof)
-        external
-        nonReentrant
-    {
+    function commit(
+        address token,
+        uint256 pledgeQuote,
+        bool useAqua,
+        bytes calldata signature,
+        bytes32[] calldata proof
+    ) external nonReentrant {
         Campaign storage c = _campaigns[token];
         if (c.status != CampaignStatus.Open) revert CampaignNotOpen();
         if (block.timestamp >= c.closesAt) revert CampaignClosed();
@@ -527,7 +530,8 @@ contract WeirV2CommitmentRegistry is ReentrancyGuard {
         // From the taker's (this registry's) view: tokenIn = launch token,
         // tokenOut = quote. StaticBalances are given per sorted token.
         (uint256 balanceA, uint256 balanceB) = tokenIsA ? (allocation, pledgeQuote) : (pledgeQuote, allocation);
-        bytes memory program = SwapVMOrderLib.limitOrderProgram(c.nonceBit, c.orderDeadline, balanceA, balanceB, tokenIsA);
+        bytes memory program =
+            SwapVMOrderLib.limitOrderProgram(c.nonceBit, c.orderDeadline, balanceA, balanceB, tokenIsA);
         return SwapVMOrderLib.buildOrder(backer, tokenA, tokenB, program, useAqua);
     }
 

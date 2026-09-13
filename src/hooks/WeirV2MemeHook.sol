@@ -931,10 +931,7 @@ contract WeirV2MemeHook is BaseHook, IUnlockCallback, IWeirV2FeePolicy, Ownable2
      * credit it to). The caller folds any undiverted amount back into the
      * creator bucket rather than reverting the whole sweep over it.
      */
-    function _fundStakingVault(PoolId poolId, LaunchInfo memory info, uint256 amount)
-        private
-        returns (uint256 funded)
-    {
+    function _fundStakingVault(PoolId poolId, LaunchInfo memory info, uint256 amount) private returns (uint256 funded) {
         if (amount == 0) return 0;
         WeirV2StakingReward vault = stakingVaults[poolId];
         // Checked here rather than relying on notifyReward's own guard: for a

@@ -31,9 +31,11 @@ library FixedPointMath {
             uint256 series = WAD;
             for (uint256 i = 1; i < 8; ++i) {
                 term = (term * rAbs) / (WAD * i);
-                if (r >= 0) series += term;
-                else if (series > term) series -= term;
-                else {
+                if (r >= 0) {
+                    series += term;
+                } else if (series > term) {
+                    series -= term;
+                } else {
                     series = 0;
                     break;
                 }

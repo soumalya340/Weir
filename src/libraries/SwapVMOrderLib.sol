@@ -78,7 +78,9 @@ library SwapVMOrderLib {
         if (tokenA >= tokenB) revert TokensNotSorted();
         uint256 traits = (uint256(MAKER_NO_HOOK_SLICES) << MAKER_DATA_SLICES_BIT_OFFSET)
             | (useAqua ? MAKER_USE_AQUA_INSTEAD_OF_SIGNATURE : 0);
-        order = ISwapVM.Order({maker: maker, traits: traits, data: bytes.concat(abi.encodePacked(tokenA, tokenB), program)});
+        order = ISwapVM.Order({
+            maker: maker, traits: traits, data: bytes.concat(abi.encodePacked(tokenA, tokenB), program)
+        });
     }
 
     /**

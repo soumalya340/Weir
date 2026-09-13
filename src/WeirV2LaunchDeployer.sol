@@ -152,7 +152,9 @@ contract WeirV2LaunchDeployer {
             params.snipeTaxStartBps,
             params.snipeTaxSeconds
         );
-        curve = _computeCreate2Address(curveSalt, keccak256(abi.encodePacked(type(WeirV2BondingCurve).creationCode, curveInit)));
+        curve = _computeCreate2Address(
+            curveSalt, keccak256(abi.encodePacked(type(WeirV2BondingCurve).creationCode, curveInit))
+        );
 
         bytes32 tokenSalt = _tokenSalt(params.originalDeployer, params.salt);
         bytes memory tokenInit = abi.encode(

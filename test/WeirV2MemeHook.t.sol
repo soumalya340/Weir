@@ -48,9 +48,8 @@ contract WeirV2MemeHookTest is Test {
     }
 
     function _mineHook(address hookOwner) internal returns (WeirV2MemeHook mined) {
-        uint160 flags = uint160(
-            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
-        );
+        uint160 flags =
+            uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
         bytes memory args = abi.encode(IPoolManager(address(pm)), escrow, protocolRecipient, hookOwner);
         (, bytes32 salt) = HookMiner.find(address(this), flags, type(WeirV2MemeHook).creationCode, args);
         mined = new WeirV2MemeHook{salt: salt}(IPoolManager(address(pm)), escrow, protocolRecipient, hookOwner);

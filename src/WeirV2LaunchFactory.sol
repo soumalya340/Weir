@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
-           
+
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -821,7 +821,9 @@ contract WeirV2LaunchFactory is Ownable2Step, ReentrancyGuard, IWeirV2LaunchFact
         address originalDeployer,
         WeirV2CommitmentRegistry.CampaignParams memory campaign
     ) private returns (address token, address curve) {
-        if (address(launchDeployer) == address(0)) revert LaunchDeployerNotSet();
+        if (address(launchDeployer) == address(0)) {
+            revert LaunchDeployerNotSet();
+        }
         _requireLaunchDependenciesWired();
         if (!canLaunch(originalDeployer)) revert NotWhitelisted();
         if (msg.value != launchFee) revert LaunchFeeNotPaid();

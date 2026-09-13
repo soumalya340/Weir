@@ -96,11 +96,7 @@ contract WeirV2CommitmentRegistryTest is Test {
 
     function _openDefault() internal returns (uint256 committed) {
         return _open(
-            address(token),
-            address(quote),
-            PHANTOM,
-            SUPPLY,
-            _params(DISCOUNT, TARGET, 0, _defaultOpensAt(), bytes32(0))
+            address(token), address(quote), PHANTOM, SUPPLY, _params(DISCOUNT, TARGET, 0, _defaultOpensAt(), bytes32(0))
         );
     }
 
@@ -167,7 +163,12 @@ contract WeirV2CommitmentRegistryTest is Test {
     function test_open_onlyFactory() public {
         vm.expectRevert(WeirV2CommitmentRegistry.NotFactory.selector);
         reg.openCampaign(
-            address(token), address(0xC0C0), creator, address(quote), PHANTOM, SUPPLY,
+            address(token),
+            address(0xC0C0),
+            creator,
+            address(quote),
+            PHANTOM,
+            SUPPLY,
             _params(DISCOUNT, TARGET, 0, _defaultOpensAt(), bytes32(0))
         );
     }
@@ -177,7 +178,12 @@ contract WeirV2CommitmentRegistryTest is Test {
         vm.prank(factory);
         vm.expectRevert(WeirV2CommitmentRegistry.NativeQuoteUnsupported.selector);
         reg.openCampaign(
-            address(token), address(0xC0C0), creator, address(0), PHANTOM, SUPPLY,
+            address(token),
+            address(0xC0C0),
+            creator,
+            address(0),
+            PHANTOM,
+            SUPPLY,
             _params(DISCOUNT, TARGET, 0, _defaultOpensAt(), bytes32(0))
         );
     }
@@ -188,7 +194,12 @@ contract WeirV2CommitmentRegistryTest is Test {
         vm.prank(factory);
         vm.expectRevert(WeirV2CommitmentRegistry.InvalidDiscount.selector);
         reg.openCampaign(
-            address(t1), address(0xC0C0), creator, address(quote), PHANTOM, SUPPLY,
+            address(t1),
+            address(0xC0C0),
+            creator,
+            address(quote),
+            PHANTOM,
+            SUPPLY,
             _params(1999, TARGET, 0, _defaultOpensAt(), bytes32(0))
         );
 
@@ -196,7 +207,12 @@ contract WeirV2CommitmentRegistryTest is Test {
         vm.prank(factory);
         vm.expectRevert(WeirV2CommitmentRegistry.InvalidDiscount.selector);
         reg.openCampaign(
-            address(t2), address(0xC0C0), creator, address(quote), PHANTOM, SUPPLY,
+            address(t2),
+            address(0xC0C0),
+            creator,
+            address(quote),
+            PHANTOM,
+            SUPPLY,
             _params(4001, TARGET, 0, _defaultOpensAt(), bytes32(0))
         );
 
@@ -212,7 +228,12 @@ contract WeirV2CommitmentRegistryTest is Test {
         vm.prank(factory);
         vm.expectRevert(WeirV2CommitmentRegistry.InvalidOversubscription.selector);
         reg.openCampaign(
-            address(t1), address(0xC0C0), creator, address(quote), PHANTOM, SUPPLY,
+            address(t1),
+            address(0xC0C0),
+            creator,
+            address(quote),
+            PHANTOM,
+            SUPPLY,
             _params(DISCOUNT, TARGET, 9999, _defaultOpensAt(), bytes32(0))
         );
 
@@ -220,7 +241,12 @@ contract WeirV2CommitmentRegistryTest is Test {
         vm.prank(factory);
         vm.expectRevert(WeirV2CommitmentRegistry.InvalidOversubscription.selector);
         reg.openCampaign(
-            address(t2), address(0xC0C0), creator, address(quote), PHANTOM, SUPPLY,
+            address(t2),
+            address(0xC0C0),
+            creator,
+            address(quote),
+            PHANTOM,
+            SUPPLY,
             _params(DISCOUNT, TARGET, 20001, _defaultOpensAt(), bytes32(0))
         );
 
@@ -230,13 +256,21 @@ contract WeirV2CommitmentRegistryTest is Test {
 
         MockBurnableToken t4 = new MockBurnableToken("D", "D");
         _open(
-            address(t4), address(quote), PHANTOM, SUPPLY, _params(DISCOUNT, TARGET, 10_000, _defaultOpensAt(), bytes32(0))
+            address(t4),
+            address(quote),
+            PHANTOM,
+            SUPPLY,
+            _params(DISCOUNT, TARGET, 10_000, _defaultOpensAt(), bytes32(0))
         );
         assertEq(reg.getCampaign(address(t4)).maxPledged, TARGET);
 
         MockBurnableToken t5 = new MockBurnableToken("E", "E");
         _open(
-            address(t5), address(quote), PHANTOM, SUPPLY, _params(DISCOUNT, TARGET, 20_000, _defaultOpensAt(), bytes32(0))
+            address(t5),
+            address(quote),
+            PHANTOM,
+            SUPPLY,
+            _params(DISCOUNT, TARGET, 20_000, _defaultOpensAt(), bytes32(0))
         );
         assertEq(reg.getCampaign(address(t5)).maxPledged, TARGET * 2);
     }
@@ -247,13 +281,21 @@ contract WeirV2CommitmentRegistryTest is Test {
         vm.prank(factory);
         vm.expectRevert(WeirV2CommitmentRegistry.CampaignTooShort.selector);
         reg.openCampaign(
-            address(t1), address(0xC0C0), creator, address(quote), PHANTOM, SUPPLY,
+            address(t1),
+            address(0xC0C0),
+            creator,
+            address(quote),
+            PHANTOM,
+            SUPPLY,
             _params(DISCOUNT, TARGET, 0, block.timestamp + 24 hours - 1, bytes32(0))
         );
 
         MockBurnableToken t2 = new MockBurnableToken("B", "B");
         _open(
-            address(t2), address(quote), PHANTOM, SUPPLY,
+            address(t2),
+            address(quote),
+            PHANTOM,
+            SUPPLY,
             _params(DISCOUNT, TARGET, 0, block.timestamp + 24 hours, bytes32(0))
         );
     }
@@ -267,11 +309,13 @@ contract WeirV2CommitmentRegistryTest is Test {
         for (uint256 i = 0; i < 3; ++i) {
             MockBurnableToken t = new MockBurnableToken("T", "T");
             uint256 committed = _open(
-                address(t), address(quote), phantoms[i], supplies[i],
+                address(t),
+                address(quote),
+                phantoms[i],
+                supplies[i],
                 _params(discounts[i], targets[i], 0, _defaultOpensAt(), bytes32(0))
             );
-            uint256 expected =
-                Math.mulDiv(targets[i] * BPS, supplies[i], phantoms[i] * (BPS - discounts[i]));
+            uint256 expected = Math.mulDiv(targets[i] * BPS, supplies[i], phantoms[i] * (BPS - discounts[i]));
             assertEq(committed, expected);
         }
     }
@@ -282,7 +326,12 @@ contract WeirV2CommitmentRegistryTest is Test {
         vm.prank(factory);
         vm.expectRevert(WeirV2CommitmentRegistry.TrancheTooLarge.selector);
         reg.openCampaign(
-            address(t1), address(0xC0C0), creator, address(quote), PHANTOM, SUPPLY,
+            address(t1),
+            address(0xC0C0),
+            creator,
+            address(quote),
+            PHANTOM,
+            SUPPLY,
             _params(4000, 400_000e6, 0, _defaultOpensAt(), bytes32(0))
         );
 
@@ -290,7 +339,12 @@ contract WeirV2CommitmentRegistryTest is Test {
         vm.prank(factory);
         vm.expectRevert(WeirV2CommitmentRegistry.ZeroAmount.selector);
         reg.openCampaign(
-            address(t2), address(0xC0C0), creator, address(quote), 1e40, SUPPLY,
+            address(t2),
+            address(0xC0C0),
+            creator,
+            address(quote),
+            1e40,
+            SUPPLY,
             _params(DISCOUNT, 100e6, 0, _defaultOpensAt(), bytes32(0))
         );
     }
@@ -301,7 +355,12 @@ contract WeirV2CommitmentRegistryTest is Test {
         vm.prank(factory);
         vm.expectRevert(WeirV2CommitmentRegistry.CampaignExists.selector);
         reg.openCampaign(
-            address(token), address(0xC0C0), creator, address(quote), PHANTOM, SUPPLY,
+            address(token),
+            address(0xC0C0),
+            creator,
+            address(quote),
+            PHANTOM,
+            SUPPLY,
             _params(DISCOUNT, TARGET, 0, _defaultOpensAt(), bytes32(0))
         );
     }
@@ -314,9 +373,16 @@ contract WeirV2CommitmentRegistryTest is Test {
 
         vm.prank(factory);
         vm.expectEmit(true, true, false, true);
-        emit CampaignOpened(address(token), creator, address(quote), DISCOUNT, TARGET, expectedCommitted, block.timestamp, opensAt, root);
+        emit CampaignOpened(
+            address(token), creator, address(quote), DISCOUNT, TARGET, expectedCommitted, block.timestamp, opensAt, root
+        );
         uint256 committed = reg.openCampaign(
-            address(token), address(0xC0C0), creator, address(quote), PHANTOM, SUPPLY,
+            address(token),
+            address(0xC0C0),
+            creator,
+            address(quote),
+            PHANTOM,
+            SUPPLY,
             _params(DISCOUNT, TARGET, 0, opensAt, root)
         );
         assertEq(committed, expectedCommitted);
@@ -510,15 +576,10 @@ contract WeirV2CommitmentRegistryTest is Test {
         address b = vm.addr(keyB);
         bytes32 leafA = keccak256(abi.encodePacked(a));
         bytes32 leafB = keccak256(abi.encodePacked(b));
-        bytes32 root = leafA < leafB
-            ? keccak256(abi.encode(leafA, leafB))
-            : keccak256(abi.encode(leafB, leafA));
+        bytes32 root = leafA < leafB ? keccak256(abi.encode(leafA, leafB)) : keccak256(abi.encode(leafB, leafA));
 
         MockBurnableToken gated = new MockBurnableToken("G", "G");
-        _open(
-            address(gated), address(quote), PHANTOM, SUPPLY,
-            _params(DISCOUNT, TARGET, 0, _defaultOpensAt(), root)
-        );
+        _open(address(gated), address(quote), PHANTOM, SUPPLY, _params(DISCOUNT, TARGET, 0, _defaultOpensAt(), root));
 
         uint256 pledge = 100e6;
         // Valid proof passes.
@@ -597,9 +658,8 @@ contract WeirV2CommitmentRegistryTest is Test {
         _open(
             address(token), address(quote), PHANTOM, SUPPLY, _params(DISCOUNT, TARGET, 0, _defaultOpensAt(), bytes32(0))
         );
-        uint256 committedB = _open(
-            address(tokenB), address(quote), PHANTOM, SUPPLY, _params(DISCOUNT, TARGET, 0, farOut, bytes32(0))
-        );
+        uint256 committedB =
+            _open(address(tokenB), address(quote), PHANTOM, SUPPLY, _params(DISCOUNT, TARGET, 0, farOut, bytes32(0)));
         assertGt(committedB, 0);
 
         (uint256 key,) = _backer(506);
@@ -648,7 +708,12 @@ contract WeirV2CommitmentRegistryTest is Test {
         WeirV2CommitmentRegistry regTax = new WeirV2CommitmentRegistry(factory, ISwapVM(address(router)));
         vm.prank(factory);
         regTax.openCampaign(
-            address(t), address(0xC0C0), creator, address(taxQuote), PHANTOM, SUPPLY,
+            address(t),
+            address(0xC0C0),
+            creator,
+            address(taxQuote),
+            PHANTOM,
+            SUPPLY,
             _params(DISCOUNT, TARGET, 0, _defaultOpensAt(), bytes32(0))
         );
 
@@ -707,9 +772,7 @@ contract WeirV2CommitmentRegistryTest is Test {
         // No tranche released yet.
         vm.warp(reg.getCampaign(address(token)).closesAt + 1);
         vm.prank(factory);
-        vm.expectRevert(
-            abi.encodeWithSelector(WeirV2CommitmentRegistry.TrancheNotReceived.selector, committed, 0)
-        );
+        vm.expectRevert(abi.encodeWithSelector(WeirV2CommitmentRegistry.TrancheNotReceived.selector, committed, 0));
         reg.settle(address(token));
 
         // Tranche present but campaign still open.
@@ -763,7 +826,9 @@ contract WeirV2CommitmentRegistryTest is Test {
         assertEq(quote.balanceOf(factory), TARGET_R);
         for (uint256 i = 0; i < n; ++i) {
             address who = vm.addr(keys[i]);
-            assertEq(uint8(reg.getCommitment(address(token), who).outcome), uint8(WeirV2CommitmentRegistry.Outcome.Filled));
+            assertEq(
+                uint8(reg.getCommitment(address(token), who).outcome), uint8(WeirV2CommitmentRegistry.Outcome.Filled)
+            );
             assertEq(reg.outstandingPledge(who), 0);
         }
         // Router allowance reset.
@@ -961,7 +1026,10 @@ contract WeirV2CommitmentRegistryTest is Test {
         assertEq(c.settledQuote, 0);
         assertEq(c.deliveredTokens, 0);
         assertEq(c.burnedTokens, committed);
-        assertEq(uint8(reg.getCommitment(address(token), vm.addr(key)).outcome), uint8(WeirV2CommitmentRegistry.Outcome.Unfilled));
+        assertEq(
+            uint8(reg.getCommitment(address(token), vm.addr(key)).outcome),
+            uint8(WeirV2CommitmentRegistry.Outcome.Unfilled)
+        );
         assertEq(router.callCount(), 0);
     }
 
@@ -980,7 +1048,10 @@ contract WeirV2CommitmentRegistryTest is Test {
         WeirV2CommitmentRegistry.Campaign memory c = reg.getCampaign(address(token));
         assertEq(forwarded, 0);
         assertEq(c.burnedTokens, committed);
-        assertEq(uint8(reg.getCommitment(address(token), vm.addr(key)).outcome), uint8(WeirV2CommitmentRegistry.Outcome.Unfilled));
+        assertEq(
+            uint8(reg.getCommitment(address(token), vm.addr(key)).outcome),
+            uint8(WeirV2CommitmentRegistry.Outcome.Unfilled)
+        );
         assertEq(router.callCount(), 0);
     }
 
@@ -1016,7 +1087,12 @@ contract WeirV2CommitmentRegistryTest is Test {
 
         vm.prank(address(factoryC));
         uint256 committed = regR.openCampaign(
-            address(t), address(0xC0C0), creator, address(rquote), PHANTOM, SUPPLY,
+            address(t),
+            address(0xC0C0),
+            creator,
+            address(rquote),
+            PHANTOM,
+            SUPPLY,
             _params(DISCOUNT, TARGET, 0, _defaultOpensAt(), bytes32(0))
         );
 
@@ -1299,8 +1375,7 @@ contract WeirV2CommitmentRegistryTest is Test {
 
             // StaticBalances sides + LimitSwap direction from first principles.
             (ISwapVM.Order memory order,) = reg.previewCommitmentOrder(token_, who, pledge, false);
-            (address tokenA, address tokenB, bool tokenIsA) =
-                SwapVMOrderLib.sortTokens(token_, address(quote));
+            (address tokenA, address tokenB, bool tokenIsA) = SwapVMOrderLib.sortTokens(token_, address(quote));
             assertEq(_addr(order.data, 0), tokenA);
             assertEq(_addr(order.data, 20), tokenB);
             uint256 allocation = Math.mulDiv(pledge, committed, TARGET);
@@ -1315,10 +1390,7 @@ contract WeirV2CommitmentRegistryTest is Test {
             vm.warp(reg.getCampaign(token_).closesAt + 1);
             vm.prank(factory);
             reg.settle(token_);
-            assertEq(
-                uint8(reg.getCommitment(token_, who).outcome),
-                uint8(WeirV2CommitmentRegistry.Outcome.Filled)
-            );
+            assertEq(uint8(reg.getCommitment(token_, who).outcome), uint8(WeirV2CommitmentRegistry.Outcome.Filled));
         }
     }
 }

@@ -60,8 +60,9 @@ contract WeirV2StakingCompoundTest is Test {
     /// @dev Builds a maker order selling memecoin for the ERC-20 quote.
     function _makerOrder(uint256 payAmount, uint256 tokenAmount) internal view returns (ISwapVM.Order memory order) {
         (address tokenA, address tokenB,) = SwapVMOrderLib.sortTokens(address(quote), address(meme));
-        bytes memory program =
-            SwapVMOrderLib.limitOrderProgram(1, 0, payAmount == 0 ? 1 : payAmount, tokenAmount == 0 ? 1 : tokenAmount, address(quote) < address(meme));
+        bytes memory program = SwapVMOrderLib.limitOrderProgram(
+            1, 0, payAmount == 0 ? 1 : payAmount, tokenAmount == 0 ? 1 : tokenAmount, address(quote) < address(meme)
+        );
         order = SwapVMOrderLib.buildOrder(maker, tokenA, tokenB, program, false);
     }
 
@@ -233,11 +234,8 @@ contract WeirV2StakingCompoundTest is Test {
 
         // Wrong tokens entirely.
         (address tokenA, address tokenB,) = SwapVMOrderLib.sortTokens(address(quote), address(meme));
-        ISwapVM.Order memory wrong = SwapVMOrderLib.buildOrder(
-            maker, tokenA, tokenB,
-            SwapVMOrderLib.limitOrderProgram(1, 0, 1, 1, true),
-            false
-        );
+        ISwapVM.Order memory wrong =
+            SwapVMOrderLib.buildOrder(maker, tokenA, tokenB, SwapVMOrderLib.limitOrderProgram(1, 0, 1, 1, true), false);
         // Corrupt the pair by swapping in an unrelated address.
         wrong.data = bytes.concat(abi.encodePacked(address(9999), tokenB), hex"00");
         vm.prank(alice);
@@ -386,9 +384,8 @@ contract WeirV2StakingCompoundNativeTest is Test {
 
         MockUSDC foreign = new MockUSDC();
         (address tokenA, address tokenB,) = SwapVMOrderLib.sortTokens(address(foreign), address(meme));
-        ISwapVM.Order memory wrong = SwapVMOrderLib.buildOrder(
-            maker, tokenA, tokenB, SwapVMOrderLib.limitOrderProgram(1, 0, 1, 1, true), false
-        );
+        ISwapVM.Order memory wrong =
+            SwapVMOrderLib.buildOrder(maker, tokenA, tokenB, SwapVMOrderLib.limitOrderProgram(1, 0, 1, 1, true), false);
         vm.prank(alice);
         vm.expectRevert(WeirV2StakingReward.OrderTokenMismatch.selector);
         vault.compound(alice, wrong, bytes(""), 0);
@@ -515,9 +512,7 @@ contract WeirV2StakingCompoundOverspendTest is Test {
 
         // The sender-tax debits 1 wei beyond the approved pull.
         vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(WeirV2StakingReward.CompoundOverspent.selector, budget + 1, budget)
-        );
+        vm.expectRevert(abi.encodeWithSelector(WeirV2StakingReward.CompoundOverspent.selector, budget + 1, budget));
         vault.compound(alice, order, bytes(""), 0);
     }
 }

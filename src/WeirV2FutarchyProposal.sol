@@ -40,11 +40,7 @@ contract WeirV2FutarchyProposal is ReentrancyGuard {
     error BondAlreadyReturned();
 
     event ProposalCreated(
-        address indexed vault,
-        address indexed proposer,
-        address passMarket,
-        address failMarket,
-        uint256 closesAt
+        address indexed vault, address indexed proposer, address passMarket, address failMarket, uint256 closesAt
     );
     event ProposalFinalized(bool passed, uint256 passPrice, uint256 failPrice);
     event BondReturned(address indexed proposer, uint256 amount);
@@ -69,8 +65,9 @@ contract WeirV2FutarchyProposal is ReentrancyGuard {
      * paid `msg.value` rather than the factory itself.
      */
     constructor(address vault_, address proposer_) payable {
-        if (vault_ == address(0) || proposer_ == address(0))
+        if (vault_ == address(0) || proposer_ == address(0)) {
             revert ZeroAddress();
+        }
         if (msg.value < PROPOSE_BOND) revert InsufficientBond();
 
         vault = vault_;
@@ -104,13 +101,7 @@ contract WeirV2FutarchyProposal is ReentrancyGuard {
         // is the only deployer of this contract into a vault's proposal slot
         // (AUDIT.md #1). Self-wiring here would re-open permissionless seizure.
 
-        emit ProposalCreated(
-            vault_,
-            proposer_,
-            address(passMarket),
-            address(failMarket),
-            closes
-        );
+        emit ProposalCreated(vault_, proposer_, address(passMarket), address(failMarket), closes);
     }
 
     /**
@@ -133,12 +124,8 @@ contract WeirV2FutarchyProposal is ReentrancyGuard {
         finalized = true;
         passed = result;
 
-        passMarket.resolve(
-            result ? passMarket.OUTCOME_YES() : passMarket.OUTCOME_NO()
-        );
-        failMarket.resolve(
-            result ? failMarket.OUTCOME_NO() : failMarket.OUTCOME_YES()
-        );
+        passMarket.resolve(result ? passMarket.OUTCOME_YES() : passMarket.OUTCOME_NO());
+        failMarket.resolve(result ? failMarket.OUTCOME_NO() : failMarket.OUTCOME_YES());
 
         if (result) {
             IWeirV2EarlyExitVault(vault).unlockEarlyExit();
@@ -159,10 +146,8 @@ contract WeirV2FutarchyProposal is ReentrancyGuard {
         if (bondReturned) revert BondAlreadyReturned();
         bondReturned = true;
 
-        uint256 amount = address(this).balance < PROPOSE_BOND
-            ? address(this).balance
-            : PROPOSE_BOND;
-        (bool ok, ) = payable(proposer).call{value: amount}("");
+        uint256 amount = address(this).balance < PROPOSE_BOND ? address(this).balance : PROPOSE_BOND;
+        (bool ok,) = payable(proposer).call{value: amount}("");
         require(ok, "Bond transfer failed");
 
         emit BondReturned(proposer, amount);

@@ -145,13 +145,14 @@ contract DeployWeirV2 is Script {
         address protocolFeeRecipient,
         address initialOwner
     ) internal returns (WeirV2MemeHook memeHook) {
-        uint160 flags = uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG);
+        uint160 flags = uint160(
+            Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+        );
 
         bytes memory creationCode = type(WeirV2MemeHook).creationCode;
         bytes memory constructorArgs = abi.encode(poolManager, feeEscrow, protocolFeeRecipient, initialOwner);
 
-        (address predictedAddress, bytes32 salt) =
-            HookMiner.find(create2Deployer, flags, creationCode, constructorArgs);
+        (address predictedAddress, bytes32 salt) = HookMiner.find(create2Deployer, flags, creationCode, constructorArgs);
 
         memeHook = new WeirV2MemeHook{salt: salt}(poolManager, feeEscrow, protocolFeeRecipient, initialOwner);
         require(address(memeHook) == predictedAddress, "DeployWeirV2: hook address mismatch");
